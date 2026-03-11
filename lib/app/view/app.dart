@@ -5,6 +5,7 @@ import 'package:cloud_storage_api/cloud_storage_api.dart'; // ☁️ استدع�
 import 'package:crm_repository/crm_repository.dart';
 import 'package:my_pro_app/l10n/l10n.dart';
 import 'package:my_pro_app/home/view/home_page.dart';
+import 'package:my_pro_app/app/view/auth_gate.dart'; // 🌟 استدعاء البوابة
 
 class App extends StatelessWidget {
   const App({
@@ -33,7 +34,7 @@ class App extends StatelessWidget {
         ),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const HomePage(),
+        home: const AuthGate(), // 🌟 التطبيق يبدأ من البوابة      
       ),
     );
   }

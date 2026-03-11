@@ -35,6 +35,15 @@ class ContactsView extends StatelessWidget {
               context.read<ContactsCubit>().syncFromPhone();
             },
           ),
+          // 🌟 زر تسجيل الخروج (للتجربة)
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.redAccent),
+            tooltip: 'تسجيل الخروج',
+            onPressed: () {
+              // نطلب من المدير تسجيل الخروج، والبوابة ستطردنا تلقائياً!
+              context.read<CrmRepository>().signOut(); 
+            },
+          ),
         ],
       ),
       // 🌟 البناء بناءً على الحالة (بدون setState)
