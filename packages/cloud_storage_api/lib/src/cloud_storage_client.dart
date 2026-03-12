@@ -54,4 +54,16 @@ class CloudStorageClient {
     if (messages.isNotEmpty) await _supabaseClient.from('messages').upsert(messages);
   }
   // سيتم إضافة دوال المزامنة (جلب المجموعات والرسائل) هنا لاحقاً!
+
+  // ==========================================
+  // قسم جلب البيانات (Fetch / Download) 📥
+  // ==========================================
+
+  Future<List<Map<String, dynamic>>> fetchGroups() async => await _supabaseClient.from('groups').select();
+  
+  Future<List<Map<String, dynamic>>> fetchContacts() async => await _supabaseClient.from('contacts').select();
+  
+  Future<List<Map<String, dynamic>>> fetchSchedules() async => await _supabaseClient.from('schedules').select();
+  
+  Future<List<Map<String, dynamic>>> fetchMessages() async => await _supabaseClient.from('messages').select();
 }

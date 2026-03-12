@@ -119,44 +119,49 @@ class DashboardCubit extends Cubit<DashboardState> {
 
 
 
-  /// ☁️ رفع كل البيانات إلى Supabase
+  /// 🔄 المزامنة الشاملة (رفع + تنزيل)
   Future<void> syncDataToCloud() async {
     if (state is DashboardLoaded) {
       final currentState = state as DashboardLoaded;
       
-      // إخبار الشاشة ببدء التحميل وعرض رسالة
       emit(DashboardLoaded(
         contactsCount: currentState.contactsCount,
         groupsCount: currentState.groupsCount,
         schedulesCount: currentState.schedulesCount,
         recentLogs: currentState.recentLogs,
-        isEngineRunning: true, // نستخدم نفس المتغير لتدوير التحميل
-        engineStatusMessage: '🔄 جاري رفع كل البيانات للسحابة...',
+        isEngineRunning: true,
+        engineStatusMessage: '🔄 جاري المزامنة الشاملة (رفع وتنزيل)...',
       ));
 
       try {
+        // 1. رفع البيانات الجديدة من الهاتف للسحابة
         await _repository.syncAllToCloud();
         
-        // النجاح
+        // 2. تنزيل البيانات الجديدة من السحابة للهاتف
+        await _repository.downloadAllFromCloud();
+        
+        // 3. إعادة تحميل لوحة التحكم لتعكس الأرقام الجديدة
+        await loadDashboard();
+        
+        final newState = state as DashboardLoaded;
         emit(DashboardLoaded(
-          contactsCount: currentState.contactsCount,
-          groupsCount: currentState.groupsCount,
-          schedulesCount: currentState.schedulesCount,
-          recentLogs: currentState.recentLogs,
+          contactsCount: newState.contactsCount,
+          groupsCount: newState.groupsCount,
+          schedulesCount: newState.schedulesCount,
+          recentLogs: newState.recentLogs,
           isEngineRunning: false,
-          engineStatusMessage: '✅ تمت المزامنة والرفع للسحابة بنجاح!',
+          engineStatusMessage: '✅ تمت المزامنة بنجاح!',
         ));
       } catch (e) {
-        // الفشل
         emit(DashboardLoaded(
           contactsCount: currentState.contactsCount,
           groupsCount: currentState.groupsCount,
           schedulesCount: currentState.schedulesCount,
           recentLogs: currentState.recentLogs,
           isEngineRunning: false,
-          engineStatusMessage: '❌ فشلت المزامنة: تأكد من اتصال الإنترنت أو جداول Supabase',
+          engineStatusMessage: '❌ فشلت المزامنة: $e',
         ));
       }
     }
-  }
+  } 
 }

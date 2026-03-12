@@ -164,4 +164,64 @@ class CrmRepository {
     await _cloudStorage.syncSchedules(schedulesJson);
     await _cloudStorage.syncMessages(messagesJson);
   }
+
+  /// 📥 تنزيل البيانات من السحابة وحفظها في الهاتف (Drift)
+  Future<void> downloadAllFromCloud() async {
+    // 1. جلب البيانات من السحابة
+    final cloudGroups = await _cloudStorage.fetchGroups();
+    final cloudContacts = await _cloudStorage.fetchContacts();
+    final cloudSchedules = await _cloudStorage.fetchSchedules();
+    final cloudMessages = await _cloudStorage.fetchMessages();
+
+    // 2. حفظ المجموعات (نستخدم try-catch لتجاهل الخطأ إذا كانت المجموعة موجودة مسبقاً)
+    for (var row in cloudGroups) {
+      try {
+        await _localStorage.insertGroup(GroupsCompanion(
+          id: drift.Value(row['id']),
+          name: drift.Value(row['name']),
+        ));
+      } catch (_) {} 
+    }
+
+    // 3. حفظ جهات الاتصال
+    for (var row in cloudContacts) {
+      try {
+        await _localStorage.insertContact(ContactsCompanion(
+          id: drift.Value(row['id']),
+          name: drift.Value(row['name']),
+          phone: drift.Value(row['phone']),
+          groupId: drift.Value(row['group_id']),
+        ));
+      } catch (_) {}
+    }
+
+    // 4. حفظ الحملات المجدولة
+    for (var row in cloudSchedules) {
+      try {
+        await _localStorage.insertSchedule(SchedulesCompanion(
+          id: drift.Value(row['id']),
+          groupId: drift.Value(row['group_id']),
+          message: drift.Value(row['message']),
+          sendDay: drift.Value(row['send_day']),
+          lastSentDate: drift.Value(row['last_sent_date'] != null ? DateTime.parse(row['last_sent_date']) : null),
+          isActive: drift.Value(row['is_active']),
+        ));
+      } catch (_) {}
+    }
+
+    // 5. حفظ سجلات الرسائل
+    for (var row in cloudMessages) {
+      try {
+        await _localStorage.insertMessage(MessagesCompanion(
+          id: drift.Value(row['id']),
+          phone: drift.Value(row['phone']),
+          body: drift.Value(row['body']),
+          type: drift.Value(row['type']),
+          messageDate: drift.Value(DateTime.parse(row['message_date'])),
+        ));
+      } catch (_) {}
+    }
+  }
+
+  
 }
