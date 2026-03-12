@@ -43,7 +43,6 @@ class CrmRepository {
 
   Future<void> saveSyncedContacts(List<Map<String, String>> phoneContacts) async {
     for (var contact in phoneContacts) {
-      // لاحظ هنا: ContactsCompanion بدون .drift لأنها من حزمتنا
       final companion = ContactsCompanion(
         name: drift.Value(contact['name'] ?? 'بدون اسم'),
         phone: drift.Value(contact['phone'] ?? ''),
@@ -56,6 +55,12 @@ class CrmRepository {
     return await _localStorage.deleteContact(contact);
   }
 
+  /// 🌟 الدالة المصححة والوحيدة لتحديث المجموعة
+  Future<void> updateContactGroup(Contact contact, int? groupId) async {
+    // نطلب من قاعدة البيانات التحديث المباشر للـ ID الخاص بالعميل لتجنب مشكلة الـ Unique
+    await _localStorage.updateContactGroupDB(contact.id, groupId); 
+  }
+
   // ==========================================
   // 3. قسم المجموعات والحملات (Groups & Campaigns) 📅
   // ==========================================
@@ -64,20 +69,7 @@ class CrmRepository {
     return await _localStorage.getAllGroups();
   }
 
-  /// 🌟 الدالة الجديدة: تحديث المجموعة الخاصة بجهة اتصال معينة
-  Future<void> updateContactGroup(Contact contact, int? groupId) async {
-    final companion = ContactsCompanion(
-      id: drift.Value(contact.id), // نحافظ على نفس الـ ID
-      name: drift.Value(contact.name), // نحافظ على الاسم
-      phone: drift.Value(contact.phone), // نحافظ على الرقم
-      groupId: drift.Value(groupId), // 🌟 نحدث المجموعة فقط!
-    );
-    // ستكتشف القاعدة أن الـ ID موجود مسبقاً فتقوم بتحديثه فوراً
-    await _localStorage.insertContact(companion); 
-  }
-  
   Future<int> addGroup(String name) async {
-    // 🌟 التصحيح هنا: حذفنا drift. من قبل GroupsCompanion
     final companion = GroupsCompanion(
       name: drift.Value(name),
     );
@@ -93,7 +85,6 @@ class CrmRepository {
     required String message,
     required int sendDay,
   }) async {
-    // 🌟 التصحيح هنا: حذفنا drift. من قبل SchedulesCompanion
     final companion = SchedulesCompanion(
       groupId: drift.Value(groupId),
       message: drift.Value(message),
@@ -106,18 +97,16 @@ class CrmRepository {
   // 4. قسم السجلات (Logs) 📊
   // ==========================================
 
-  /// جلب سجل الرسائل المرسلة
   Future<List<Message>> getMessageLogs() async {
     return await _localStorage.getAllMessages();
   }
 
-  /// إضافة سجل جديد (عند نجاح إرسال SMS)
   Future<int> addMessageLog({required String phone, required String body, required String type}) async {
     final companion = MessagesCompanion(
       phone: drift.Value(phone),
       body: drift.Value(body),
       type: drift.Value(type),
-      messageDate: drift.Value(DateTime.now()), // حفظ وقت وتاريخ الإرسال
+      messageDate: drift.Value(DateTime.now()), 
     );
     return await _localStorage.insertMessage(companion);
   }

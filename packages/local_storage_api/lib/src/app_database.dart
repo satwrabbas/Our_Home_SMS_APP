@@ -49,9 +49,16 @@ class AppDatabase extends _$AppDatabase {
 
   // --- استعلامات جهات الاتصال ---
   Future<List<Contact>> getAllContacts() => select(contacts).get();
-  Future<int> insertContact(ContactsCompanion contact) => into(contacts).insertOnConflictUpdate(contact);
-  Future<int> deleteContact(Contact contact) => delete(contacts).delete(contact);
+  Future<int> insertContact(ContactsCompanion contact) => into(contacts).insert(contact, mode: InsertMode.insertOrIgnore);  Future<int> deleteContact(Contact contact) => delete(contacts).delete(contact);
 
+  // 🌟 الدالة الجديدة: تحديث صريح لحقل المجموعة فقط متجاهلة رقم الهاتف
+  Future<int> updateContactGroupDB(int id, int? groupId) {
+    return (update(contacts)..where((t) => t.id.equals(id))).write(
+      ContactsCompanion(groupId: Value(groupId)),
+    );
+  }
+
+  
   // --- استعلامات الجدولة والأتمتة ---
   Future<List<Schedule>> getAllSchedules() => select(schedules).get();
   Future<int> insertSchedule(SchedulesCompanion schedule) => into(schedules).insert(schedule);
@@ -60,6 +67,8 @@ class AppDatabase extends _$AppDatabase {
   // قمنا بتعديل الاستعلام ليجلب الأحدث أولاً ليفيدنا في الإحصائيات
   Future<List<Message>> getAllMessages() => (select(messages)..orderBy([(t) => OrderingTerm.desc(t.messageDate)])).get();
   Future<int> insertMessage(MessagesCompanion msg) => into(messages).insert(msg);
+
+
 }
 
 LazyDatabase _openConnection() {
