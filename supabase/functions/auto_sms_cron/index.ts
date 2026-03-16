@@ -20,21 +20,33 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // Service Role لتخطي حماية RLS
     );
 
-    const today = new Date();
-    const currentDay = today.getDate(); // رقم اليوم (مثال: 16)
+    // 🌟 3. السحر الزمني: تحويل توقيت سيرفرات أمريكا (UTC) إلى توقيت دمشق (UTC+3)
+    const nowUtc = new Date();
+    const damascusOffset = 3 * 60 * 60 * 1000; // 3 ساعات بالمللي ثانية
+    // نضيف 3 ساعات للوقت الحالي لنحصل على وقت دمشق
+    const damascusTime = new Date(nowUtc.getTime() + damascusOffset);
 
-    // 3. البحث عن الحملات المجدولة لليوم والمفعلة
+    // نستخدم getUTC لنستخرج اليوم والساعة والدقيقة بعد الإزاحة
+    const currentDay = damascusTime.getUTCDate();
+    const currentHour = damascusTime.getUTCHours();
+    const currentMinute = damascusTime.getUTCMinutes();
+
+    console.log(`جارٍ الفحص بتوقيت دمشق: يوم ${currentDay} - الساعة ${currentHour}:${currentMinute}`);
+
+    // 🌟 4. البحث الدقيق عن الحملات المجدولة لليوم، ونفس الساعة، ونفس الدقيقة!
     const { data: schedules } = await supabase
       .from('schedules')
       .select('*')
       .eq('send_day', currentDay)
+      .eq('send_hour', currentHour)
+      .eq('send_minute', currentMinute)
       .eq('is_active', true);
 
     if (!schedules || schedules.length === 0) {
-      return new Response("لا توجد حملات لليوم.", { status: 200 });
+      return new Response(`لا توجد حملات لهذه الدقيقة (${currentHour}:${currentMinute}).`, { status: 200 });
     }
 
-    // 4. جلب مفاتيح هواتف المستخدمين (FCM Tokens)
+    // 5. جلب مفاتيح هواتف المستخدمين (FCM Tokens)
     const userIds = schedules.map(s => s.user_id);
     const { data: tokens } = await supabase
       .from('user_tokens')
@@ -46,13 +58,13 @@ serve(async (req) => {
 
     let sentCount = 0;
 
-    // 5. إرسال أوامر الاستيقاظ (Silent Push) للهواتف
+    // 6. إرسال أوامر الاستيقاظ (Silent Push) للهواتف
     for (const schedule of schedules) {
       // التأكد من أنها لم تُرسل مسبقاً هذا الشهر
       let alreadySentThisMonth = false;
       if (schedule.last_sent_date) {
         const lastSent = new Date(schedule.last_sent_date);
-        if (lastSent.getMonth() === today.getMonth() && lastSent.getFullYear() === today.getFullYear()) {
+        if (lastSent.getUTCMonth() === damascusTime.getUTCMonth() && lastSent.getUTCFullYear() === damascusTime.getUTCFullYear()) {
           alreadySentThisMonth = true;
         }
       }
@@ -72,7 +84,7 @@ serve(async (req) => {
           // تحديث تاريخ آخر إرسال في السحابة لمنع التكرار
           await supabase
             .from('schedules')
-            .update({ last_sent_date: today.toISOString() })
+            .update({ last_sent_date: nowUtc.toISOString() }) // نحفظ الوقت الأصلي كمعيار قياسي
             .eq('id', schedule.id);
 
           sentCount++;

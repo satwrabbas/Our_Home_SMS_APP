@@ -23,6 +23,11 @@ class Schedules extends Table {
   IntColumn get groupId => integer().references(Groups, #id)();
   TextColumn get message => text()();
   IntColumn get sendDay => integer()();
+  
+  // 🌟 الأعمدة الجديدة للساعة والدقيقة
+  IntColumn get sendHour => integer().withDefault(const Constant(9))(); 
+  IntColumn get sendMinute => integer().withDefault(const Constant(0))(); 
+  
   DateTimeColumn get lastSentDate => dateTime().nullable()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 }

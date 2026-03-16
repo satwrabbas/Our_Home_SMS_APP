@@ -15,7 +15,6 @@ class CampaignsCubit extends Cubit<CampaignsState> {
   Future<void> loadCampaignsData() async {
     emit(CampaignsLoading());
     try {
-      // نطلب من المدير جلب الاثنين في نفس الوقت لتسريع العملية
       final groups = await _repository.getGroups();
       final schedules = await _repository.getSchedules();
       
@@ -29,17 +28,33 @@ class CampaignsCubit extends Cubit<CampaignsState> {
   Future<void> createGroup(String name) async {
     try {
       await _repository.addGroup(name);
-      await loadCampaignsData(); // تحديث الشاشة بعد الإضافة
+      await loadCampaignsData(); 
+      
+      _repository.syncAllToCloud(); // ☁️ مزامنة صامتة
     } catch (e) {
       emit(CampaignsError(message: 'خطأ في إنشاء المجموعة: $e'));
     }
   }
 
-  /// إنشاء حملة (ربط رسالة ويوم معين بمجموعة)
-  Future<void> createSchedule({required int groupId, required String message, required int sendDay}) async {
+  /// إنشاء حملة (مع دعم الساعة والدقيقة ⏰)
+  Future<void> createSchedule({
+    required int groupId, 
+    required String message, 
+    required int sendDay, 
+    required int sendHour, 
+    required int sendMinute
+  }) async {
     try {
-      await _repository.addSchedule(groupId: groupId, message: message, sendDay: sendDay);
-      await loadCampaignsData(); // تحديث الشاشة
+      await _repository.addSchedule(
+        groupId: groupId, 
+        message: message, 
+        sendDay: sendDay, 
+        sendHour: sendHour, 
+        sendMinute: sendMinute
+      );
+      await loadCampaignsData(); 
+      
+      _repository.syncAllToCloud(); // ☁️ مزامنة صامتة
     } catch (e) {
       emit(CampaignsError(message: 'خطأ في إنشاء الحملة: $e'));
     }
@@ -47,35 +62,72 @@ class CampaignsCubit extends Cubit<CampaignsState> {
 
   // --- دوال الحذف والتعديل ---
   Future<void> deleteGroup(Group group) async {
-    await _repository.deleteGroup(group);
-    await loadCampaignsData(); // تحديث الشاشة
+    try {
+      await _repository.deleteGroup(group);
+      await loadCampaignsData(); 
+      
+      _repository.syncAllToCloud(); 
+    } catch (e) {
+      emit(CampaignsError(message: 'خطأ أثناء الحذف: $e'));
+    }
   }
 
   Future<void> editGroup(Group group, String newName) async {
-    await _repository.updateGroup(group.copyWith(name: newName));
-    await loadCampaignsData();
+    try {
+      await _repository.updateGroup(group.copyWith(name: newName));
+      await loadCampaignsData();
+      
+      _repository.syncAllToCloud(); 
+    } catch (e) {
+      emit(CampaignsError(message: 'خطأ أثناء التعديل: $e'));
+    }
   }
 
   Future<void> deleteSchedule(Schedule schedule) async {
-    await _repository.deleteSchedule(schedule);
-    await loadCampaignsData();
+    try {
+      await _repository.deleteSchedule(schedule);
+      await loadCampaignsData();
+      
+      _repository.syncAllToCloud(); 
+    } catch (e) {
+      emit(CampaignsError(message: 'خطأ أثناء حذف الحملة: $e'));
+    }
   }
 
+  /// تعديل حملة (مع دعم الساعة والدقيقة ⏰)
   Future<void> editSchedule({
     required Schedule originalSchedule,
     required String newMessage,
     required int newSendDay,
+    required int newSendHour,
+    required int newSendMinute,
   }) async {
-    await _repository.updateSchedule(
-      originalSchedule.copyWith(message: newMessage, sendDay: newSendDay),
-    );
-    await loadCampaignsData();
+    try {
+      await _repository.updateSchedule(
+        originalSchedule.copyWith(
+          message: newMessage, 
+          sendDay: newSendDay, 
+          sendHour: newSendHour, 
+          sendMinute: newSendMinute
+        ),
+      );
+      await loadCampaignsData();
+      
+      _repository.syncAllToCloud(); 
+    } catch (e) {
+      emit(CampaignsError(message: 'خطأ أثناء تعديل الحملة: $e'));
+    }
   }
 
-  // 🌟 دالة جديدة لتبديل حالة تشغيل/إيقاف الحملة
+  /// دالة لتبديل حالة تشغيل/إيقاف الحملة
   Future<void> toggleScheduleActive(Schedule schedule) async {
-    // نغير حالة isActive لعكس ما هي عليه الآن
-    await _repository.updateSchedule(schedule.copyWith(isActive: !schedule.isActive));
-    await loadCampaignsData(); // تحديث الشاشة
+    try {
+      await _repository.updateSchedule(schedule.copyWith(isActive: !schedule.isActive));
+      await loadCampaignsData(); 
+      
+      _repository.syncAllToCloud(); 
+    } catch (e) {
+      emit(CampaignsError(message: 'خطأ أثناء تبديل حالة الحملة: $e'));
+    }
   }
 }

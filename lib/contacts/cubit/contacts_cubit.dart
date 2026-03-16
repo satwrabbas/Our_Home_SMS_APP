@@ -24,11 +24,15 @@ class ContactsCubit extends Cubit<ContactsState> {
     }
   }
 
-  /// 🌟 الدالة الجديدة: ربط العميل بالمجموعة
+  /// ربط العميل بالمجموعة
   Future<void> assignGroup(Contact contact, int? groupId) async {
     try {
       await _repository.updateContactGroup(contact, groupId);
-      await loadContacts(); // تحديث الشاشة فوراً لتعكس التغيير
+      await loadContacts(); // تحديث الشاشة فوراً للمستخدم
+      
+      // 🌟 السحر هنا: نأمر التطبيق برفع التعديل للسحابة بصمت! (Fire and Forget)
+      _repository.syncAllToCloud(); 
+      
     } catch (e) {
       emit(ContactsError(message: 'خطأ في تعيين المجموعة: $e'));
     }

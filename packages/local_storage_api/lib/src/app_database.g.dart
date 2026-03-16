@@ -546,6 +546,30 @@ class $SchedulesTable extends Schedules
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sendHourMeta = const VerificationMeta(
+    'sendHour',
+  );
+  @override
+  late final GeneratedColumn<int> sendHour = GeneratedColumn<int>(
+    'send_hour',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(9),
+  );
+  static const VerificationMeta _sendMinuteMeta = const VerificationMeta(
+    'sendMinute',
+  );
+  @override
+  late final GeneratedColumn<int> sendMinute = GeneratedColumn<int>(
+    'send_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _lastSentDateMeta = const VerificationMeta(
     'lastSentDate',
   );
@@ -578,6 +602,8 @@ class $SchedulesTable extends Schedules
     groupId,
     message,
     sendDay,
+    sendHour,
+    sendMinute,
     lastSentDate,
     isActive,
   ];
@@ -620,6 +646,18 @@ class $SchedulesTable extends Schedules
     } else if (isInserting) {
       context.missing(_sendDayMeta);
     }
+    if (data.containsKey('send_hour')) {
+      context.handle(
+        _sendHourMeta,
+        sendHour.isAcceptableOrUnknown(data['send_hour']!, _sendHourMeta),
+      );
+    }
+    if (data.containsKey('send_minute')) {
+      context.handle(
+        _sendMinuteMeta,
+        sendMinute.isAcceptableOrUnknown(data['send_minute']!, _sendMinuteMeta),
+      );
+    }
     if (data.containsKey('last_sent_date')) {
       context.handle(
         _lastSentDateMeta,
@@ -660,6 +698,14 @@ class $SchedulesTable extends Schedules
         DriftSqlType.int,
         data['${effectivePrefix}send_day'],
       )!,
+      sendHour: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}send_hour'],
+      )!,
+      sendMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}send_minute'],
+      )!,
       lastSentDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_sent_date'],
@@ -682,6 +728,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   final int groupId;
   final String message;
   final int sendDay;
+  final int sendHour;
+  final int sendMinute;
   final DateTime? lastSentDate;
   final bool isActive;
   const Schedule({
@@ -689,6 +737,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     required this.groupId,
     required this.message,
     required this.sendDay,
+    required this.sendHour,
+    required this.sendMinute,
     this.lastSentDate,
     required this.isActive,
   });
@@ -699,6 +749,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     map['group_id'] = Variable<int>(groupId);
     map['message'] = Variable<String>(message);
     map['send_day'] = Variable<int>(sendDay);
+    map['send_hour'] = Variable<int>(sendHour);
+    map['send_minute'] = Variable<int>(sendMinute);
     if (!nullToAbsent || lastSentDate != null) {
       map['last_sent_date'] = Variable<DateTime>(lastSentDate);
     }
@@ -712,6 +764,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       groupId: Value(groupId),
       message: Value(message),
       sendDay: Value(sendDay),
+      sendHour: Value(sendHour),
+      sendMinute: Value(sendMinute),
       lastSentDate: lastSentDate == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSentDate),
@@ -729,6 +783,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       groupId: serializer.fromJson<int>(json['groupId']),
       message: serializer.fromJson<String>(json['message']),
       sendDay: serializer.fromJson<int>(json['sendDay']),
+      sendHour: serializer.fromJson<int>(json['sendHour']),
+      sendMinute: serializer.fromJson<int>(json['sendMinute']),
       lastSentDate: serializer.fromJson<DateTime?>(json['lastSentDate']),
       isActive: serializer.fromJson<bool>(json['isActive']),
     );
@@ -741,6 +797,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       'groupId': serializer.toJson<int>(groupId),
       'message': serializer.toJson<String>(message),
       'sendDay': serializer.toJson<int>(sendDay),
+      'sendHour': serializer.toJson<int>(sendHour),
+      'sendMinute': serializer.toJson<int>(sendMinute),
       'lastSentDate': serializer.toJson<DateTime?>(lastSentDate),
       'isActive': serializer.toJson<bool>(isActive),
     };
@@ -751,6 +809,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     int? groupId,
     String? message,
     int? sendDay,
+    int? sendHour,
+    int? sendMinute,
     Value<DateTime?> lastSentDate = const Value.absent(),
     bool? isActive,
   }) => Schedule(
@@ -758,6 +818,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     groupId: groupId ?? this.groupId,
     message: message ?? this.message,
     sendDay: sendDay ?? this.sendDay,
+    sendHour: sendHour ?? this.sendHour,
+    sendMinute: sendMinute ?? this.sendMinute,
     lastSentDate: lastSentDate.present ? lastSentDate.value : this.lastSentDate,
     isActive: isActive ?? this.isActive,
   );
@@ -767,6 +829,10 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       message: data.message.present ? data.message.value : this.message,
       sendDay: data.sendDay.present ? data.sendDay.value : this.sendDay,
+      sendHour: data.sendHour.present ? data.sendHour.value : this.sendHour,
+      sendMinute: data.sendMinute.present
+          ? data.sendMinute.value
+          : this.sendMinute,
       lastSentDate: data.lastSentDate.present
           ? data.lastSentDate.value
           : this.lastSentDate,
@@ -781,6 +847,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           ..write('groupId: $groupId, ')
           ..write('message: $message, ')
           ..write('sendDay: $sendDay, ')
+          ..write('sendHour: $sendHour, ')
+          ..write('sendMinute: $sendMinute, ')
           ..write('lastSentDate: $lastSentDate, ')
           ..write('isActive: $isActive')
           ..write(')'))
@@ -788,8 +856,16 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, groupId, message, sendDay, lastSentDate, isActive);
+  int get hashCode => Object.hash(
+    id,
+    groupId,
+    message,
+    sendDay,
+    sendHour,
+    sendMinute,
+    lastSentDate,
+    isActive,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -798,6 +874,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           other.groupId == this.groupId &&
           other.message == this.message &&
           other.sendDay == this.sendDay &&
+          other.sendHour == this.sendHour &&
+          other.sendMinute == this.sendMinute &&
           other.lastSentDate == this.lastSentDate &&
           other.isActive == this.isActive);
 }
@@ -807,6 +885,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
   final Value<int> groupId;
   final Value<String> message;
   final Value<int> sendDay;
+  final Value<int> sendHour;
+  final Value<int> sendMinute;
   final Value<DateTime?> lastSentDate;
   final Value<bool> isActive;
   const SchedulesCompanion({
@@ -814,6 +894,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     this.groupId = const Value.absent(),
     this.message = const Value.absent(),
     this.sendDay = const Value.absent(),
+    this.sendHour = const Value.absent(),
+    this.sendMinute = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
   });
@@ -822,6 +904,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     required int groupId,
     required String message,
     required int sendDay,
+    this.sendHour = const Value.absent(),
+    this.sendMinute = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
   }) : groupId = Value(groupId),
@@ -832,6 +916,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Expression<int>? groupId,
     Expression<String>? message,
     Expression<int>? sendDay,
+    Expression<int>? sendHour,
+    Expression<int>? sendMinute,
     Expression<DateTime>? lastSentDate,
     Expression<bool>? isActive,
   }) {
@@ -840,6 +926,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       if (groupId != null) 'group_id': groupId,
       if (message != null) 'message': message,
       if (sendDay != null) 'send_day': sendDay,
+      if (sendHour != null) 'send_hour': sendHour,
+      if (sendMinute != null) 'send_minute': sendMinute,
       if (lastSentDate != null) 'last_sent_date': lastSentDate,
       if (isActive != null) 'is_active': isActive,
     });
@@ -850,6 +938,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Value<int>? groupId,
     Value<String>? message,
     Value<int>? sendDay,
+    Value<int>? sendHour,
+    Value<int>? sendMinute,
     Value<DateTime?>? lastSentDate,
     Value<bool>? isActive,
   }) {
@@ -858,6 +948,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       groupId: groupId ?? this.groupId,
       message: message ?? this.message,
       sendDay: sendDay ?? this.sendDay,
+      sendHour: sendHour ?? this.sendHour,
+      sendMinute: sendMinute ?? this.sendMinute,
       lastSentDate: lastSentDate ?? this.lastSentDate,
       isActive: isActive ?? this.isActive,
     );
@@ -878,6 +970,12 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     if (sendDay.present) {
       map['send_day'] = Variable<int>(sendDay.value);
     }
+    if (sendHour.present) {
+      map['send_hour'] = Variable<int>(sendHour.value);
+    }
+    if (sendMinute.present) {
+      map['send_minute'] = Variable<int>(sendMinute.value);
+    }
     if (lastSentDate.present) {
       map['last_sent_date'] = Variable<DateTime>(lastSentDate.value);
     }
@@ -894,6 +992,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
           ..write('groupId: $groupId, ')
           ..write('message: $message, ')
           ..write('sendDay: $sendDay, ')
+          ..write('sendHour: $sendHour, ')
+          ..write('sendMinute: $sendMinute, ')
           ..write('lastSentDate: $lastSentDate, ')
           ..write('isActive: $isActive')
           ..write(')'))
@@ -1877,6 +1977,8 @@ typedef $$SchedulesTableCreateCompanionBuilder =
       required int groupId,
       required String message,
       required int sendDay,
+      Value<int> sendHour,
+      Value<int> sendMinute,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
     });
@@ -1886,6 +1988,8 @@ typedef $$SchedulesTableUpdateCompanionBuilder =
       Value<int> groupId,
       Value<String> message,
       Value<int> sendDay,
+      Value<int> sendHour,
+      Value<int> sendMinute,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
     });
@@ -1934,6 +2038,16 @@ class $$SchedulesTableFilterComposer
 
   ColumnFilters<int> get sendDay => $composableBuilder(
     column: $table.sendDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sendHour => $composableBuilder(
+    column: $table.sendHour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sendMinute => $composableBuilder(
+    column: $table.sendMinute,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1995,6 +2109,16 @@ class $$SchedulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sendHour => $composableBuilder(
+    column: $table.sendHour,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sendMinute => $composableBuilder(
+    column: $table.sendMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSentDate => $composableBuilder(
     column: $table.lastSentDate,
     builder: (column) => ColumnOrderings(column),
@@ -2046,6 +2170,14 @@ class $$SchedulesTableAnnotationComposer
 
   GeneratedColumn<int> get sendDay =>
       $composableBuilder(column: $table.sendDay, builder: (column) => column);
+
+  GeneratedColumn<int> get sendHour =>
+      $composableBuilder(column: $table.sendHour, builder: (column) => column);
+
+  GeneratedColumn<int> get sendMinute => $composableBuilder(
+    column: $table.sendMinute,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get lastSentDate => $composableBuilder(
     column: $table.lastSentDate,
@@ -2111,6 +2243,8 @@ class $$SchedulesTableTableManager
                 Value<int> groupId = const Value.absent(),
                 Value<String> message = const Value.absent(),
                 Value<int> sendDay = const Value.absent(),
+                Value<int> sendHour = const Value.absent(),
+                Value<int> sendMinute = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
               }) => SchedulesCompanion(
@@ -2118,6 +2252,8 @@ class $$SchedulesTableTableManager
                 groupId: groupId,
                 message: message,
                 sendDay: sendDay,
+                sendHour: sendHour,
+                sendMinute: sendMinute,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
               ),
@@ -2127,6 +2263,8 @@ class $$SchedulesTableTableManager
                 required int groupId,
                 required String message,
                 required int sendDay,
+                Value<int> sendHour = const Value.absent(),
+                Value<int> sendMinute = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
               }) => SchedulesCompanion.insert(
@@ -2134,6 +2272,8 @@ class $$SchedulesTableTableManager
                 groupId: groupId,
                 message: message,
                 sendDay: sendDay,
+                sendHour: sendHour,
+                sendMinute: sendMinute,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
               ),

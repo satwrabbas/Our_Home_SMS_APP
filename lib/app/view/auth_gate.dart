@@ -48,8 +48,25 @@ class _WorkspaceInitializerState extends State<WorkspaceInitializer> {
   @override
   void initState() {
     super.initState();
-    // 🌟 السحر هنا: نطلب التنزيل من السحابة مرة واحدة فقط عند فتح الشاشة!
-    _initFuture = context.read<CrmRepository>().downloadAllFromCloud();
+    // 🌟 نستدعي دالة الشفاء الذاتي عند فتح التطبيق
+    _initFuture = _initializeWorkspace();
+  }
+
+  // ==========================================
+  // 🌟 دالة الشفاء الذاتي (Self-Healing Sync)
+  // ==========================================
+  Future<void> _initializeWorkspace() async {
+    final repository = context.read<CrmRepository>();
+    try {
+      // 1. نرفع بيانات الهاتف أولاً! (لضمان أن أي تعديل قمنا به وأغلقنا التطبيق بسرعة، سيتم رفعه الآن)
+      await repository.syncAllToCloud();
+      
+      // 2. ثم ننزل البيانات من السحابة (لو كان المستخدم قد أضاف بيانات من هاتف آخر)
+      await repository.downloadAllFromCloud();
+    } catch (e) {
+      // إذا لم يكن هناك إنترنت، سيتجاهل الخطأ ويدخل للرئيسية ليعمل أوفلاين بسلام!
+      print("⚠️ تعذرت المزامنة المبدئية: $e");
+    }
   }
 
   @override
@@ -58,7 +75,6 @@ class _WorkspaceInitializerState extends State<WorkspaceInitializer> {
       future: _initFuture,
       builder: (context, snapshot) {
         
-        // شاشة التحميل الأنيقة
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -69,14 +85,13 @@ class _WorkspaceInitializerState extends State<WorkspaceInitializer> {
                   SizedBox(height: 24),
                   Text('جاري تهيئة مساحة العمل...', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
-                  Text('يتم الآن جلب عملائك وحملاتك من السحابة ☁️', style: TextStyle(color: Colors.grey)),
+                  Text('يتم الآن مزامنة بياناتك بأمان ☁️', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
           );
         }
         
-        // بمجرد الانتهاء، ندخله للرئيسية ولن يعود للتحميل مجدداً
         return const HomePage();
       },
     );

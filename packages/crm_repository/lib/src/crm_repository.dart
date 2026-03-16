@@ -83,15 +83,10 @@ class CrmRepository {
     return await _localStorage.getAllSchedules();
   }
 
-  Future<int> addSchedule({
-    required int groupId,
-    required String message,
-    required int sendDay,
-  }) async {
+  Future<int> addSchedule({required int groupId, required String message, required int sendDay, required int sendHour, required int sendMinute}) async {
     final companion = SchedulesCompanion(
-      groupId: drift.Value(groupId),
-      message: drift.Value(message),
-      sendDay: drift.Value(sendDay),
+      groupId: drift.Value(groupId), message: drift.Value(message), sendDay: drift.Value(sendDay),
+      sendHour: drift.Value(sendHour), sendMinute: drift.Value(sendMinute), // 🌟
     );
     return await _localStorage.insertSchedule(companion);
   }
@@ -152,6 +147,8 @@ class CrmRepository {
       'group_id': s.groupId,
       'message': s.message,
       'send_day': s.sendDay,
+      'send_hour': s.sendHour,
+      'send_minute': s.sendMinute,
       'last_sent_date': s.lastSentDate?.toIso8601String(),
       'is_active': s.isActive,
     }).toList();
@@ -209,6 +206,8 @@ class CrmRepository {
           id: drift.Value(row['id']),
           groupId: drift.Value(row['group_id']),
           message: drift.Value(row['message']),
+          sendHour: drift.Value(row['send_hour'] ?? 9),
+          sendMinute: drift.Value(row['send_minute'] ?? 0),
           sendDay: drift.Value(row['send_day']),
           lastSentDate: drift.Value(row['last_sent_date'] != null ? DateTime.parse(row['last_sent_date']) : null),
           isActive: drift.Value(row['is_active']),
