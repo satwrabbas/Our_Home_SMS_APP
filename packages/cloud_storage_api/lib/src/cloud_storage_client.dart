@@ -94,6 +94,11 @@ class CloudStorageClient {
     await _supabaseClient.from('groups').delete().eq('id', id).eq('user_id', _currentUserId!);
   }
 
+  Future<void> deleteContact(int id) async {
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('contacts').delete().eq('id', id).eq('user_id', _currentUserId!);
+  }
+  
   Future<void> deleteSchedule(int id) async {
     if (_currentUserId == null) return;
     await _supabaseClient.from('schedules').delete().eq('id', id).eq('user_id', _currentUserId!);
