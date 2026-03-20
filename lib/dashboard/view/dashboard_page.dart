@@ -18,7 +18,9 @@ class DashboardPage extends StatelessWidget {
 class DashboardView extends StatelessWidget {
   const DashboardView({super.key});
 
+  // ==========================================
   // 🌟 نافذة ذكية تطلب اسم الجهاز قبل ربطه
+  // ==========================================
   void _showDeviceNameDialog(BuildContext context) {
     final nameController = TextEditingController();
     final cubit = context.read<DashboardCubit>();
@@ -31,7 +33,7 @@ class DashboardView extends StatelessWidget {
         content: TextField(
           controller: nameController,
           decoration: const InputDecoration(
-            labelText: 'اسم الجهاز (مثال: هاتف المبيعات 1)',
+            labelText: 'اسم الجهاز (مثال: هاتف المبيعات)',
             border: OutlineInputBorder(),
           ),
         ),
@@ -43,7 +45,6 @@ class DashboardView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               if (nameController.text.isNotEmpty) {
-                // إرسال الاسم للكيوبيت ليبدأ عملية الربط
                 cubit.toggleEngine(deviceName: nameController.text.trim());
                 Navigator.pop(dialogContext);
               }
@@ -55,20 +56,46 @@ class DashboardView extends StatelessWidget {
     );
   }
 
+  // ==========================================
+  // 🌟 النافذة السفلية (الأجهزة المرتبطة) - WhatsApp Style
+  // ==========================================
+  void _showLinkedDevicesBottomSheet(BuildContext parentContext) {
+    showModalBottomSheet(
+      context: parentContext,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => BlocProvider.value(
+        value: parentContext.read<DashboardCubit>(),
+        child: const _LinkedDevicesSheet(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('لوحة التحكم (CRM)'),
+        title: const Text('لوحة التحكم (CRM)', style: TextStyle(fontWeight: FontWeight.bold)),
         actions:[
+          // 🌟 أيقونة الأجهزة المرتبطة
+          BlocBuilder<DashboardCubit, DashboardState>(
+            builder: (context, state) {
+              return IconButton(
+                icon: const Icon(Icons.devices_other, color: Colors.white),
+                tooltip: 'الأجهزة المرتبطة',
+                onPressed: () => _showLinkedDevicesBottomSheet(context),
+              );
+            },
+          ),
+          // زر المزامنة اليدوية
           BlocBuilder<DashboardCubit, DashboardState>(
             builder: (context, state) {
               return IconButton(
                 icon: const Icon(Icons.cloud_upload, color: Colors.white),
                 tooltip: 'المزامنة اليدوية',
-                onPressed: () {
-                  context.read<DashboardCubit>().syncDataToCloud();
-                },
+                onPressed: () => context.read<DashboardCubit>().syncDataToCloud(),
               );
             },
           ),
@@ -110,14 +137,11 @@ class DashboardView extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(15),
                       boxShadow: state.isEngineRunning 
-                          ?[
-                              BoxShadow(color: Colors.greenAccent.withOpacity(0.6), blurRadius: 20, spreadRadius: 5)
-                            ]
+                          ?[BoxShadow(color: Colors.greenAccent.withOpacity(0.6), blurRadius: 20, spreadRadius: 5)]
                           :[],
                     ),
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // 🌟 إذا كان غير متصل، نظهر نافذة الاسم. وإذا كان متصل، نفك الارتباط مباشرة
                         if (!state.isEngineRunning) {
                           _showDeviceNameDialog(context);
                         } else {
@@ -194,7 +218,85 @@ class DashboardView extends StatelessWidget {
   }
 }
 
-// 🌟 أنيميشن "الرادار النابض"
+// ==========================================
+// 🌟 واجهة الأجهزة المرتبطة (Bottom Sheet)
+// ==========================================
+class _LinkedDevicesSheet extends StatelessWidget {
+  const _LinkedDevicesSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DashboardCubit, DashboardState>(
+      builder: (context, state) {
+        if (state is DashboardLoaded) {
+          final devices = state.registeredDevices;
+          final currentId = state.currentDeviceId;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 16, right: 16, top: 16
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:[
+                // شريط السحب العلوي (مظهر أنيق)
+                Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                const SizedBox(height: 16),
+                const Text('الأجهزة المرتبطة بالسحابة 📱☁️', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                
+                if (devices.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24.0), 
+                    child: Text('لا توجد أي أجهزة مرتبطة بهذا الحساب حالياً.', style: TextStyle(color: Colors.grey))
+                  ),
+                  
+                // قائمة الأجهزة
+                ...devices.map((device) {
+                  final isCurrentDevice = device['device_id'] == currentId;
+                  
+                  return Card(
+                    elevation: 1,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12), 
+                      side: BorderSide(color: isCurrentDevice ? Colors.green.withOpacity(0.5) : Colors.transparent)
+                    ),
+                    child: ListTile(
+                      leading: Icon(isCurrentDevice ? Icons.phone_android : Icons.devices, color: isCurrentDevice ? Colors.green : Colors.grey[700], size: 32),
+                      title: Text(device['device_name'] ?? 'جهاز غير معروف', style: TextStyle(fontWeight: isCurrentDevice ? FontWeight.bold : FontWeight.normal)),
+                      subtitle: isCurrentDevice 
+                          ? const Text('هذا الجهاز (متصل الآن)', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)) 
+                          : const Text('متصل بالسحابة', style: TextStyle(fontSize: 12)),
+                      
+                      // 🌟 زر الحذف يظهر فقط للأجهزة الأخرى (الشبحية)
+                      trailing: isCurrentDevice 
+                          ? null 
+                          : IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              tooltip: 'حذف هذا الجهاز',
+                              onPressed: () {
+                                context.read<DashboardCubit>().removeLinkedDevice(device['device_id']);
+                              },
+                            ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        }
+        return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+      }
+    );
+  }
+}
+
+// ==========================================
+// أنيميشن الرادار (لزر التشغيل)
+// ==========================================
 class RadarAnimation extends StatefulWidget {
   const RadarAnimation({super.key});
   @override
@@ -214,9 +316,6 @@ class _RadarAnimationState extends State<RadarAnimation> with SingleTickerProvid
   }
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _controller,
-      child: const Icon(Icons.radar, color: Colors.greenAccent, size: 40),
-    );
+    return FadeTransition(opacity: _controller, child: const Icon(Icons.radar, color: Colors.greenAccent, size: 40));
   }
 }

@@ -2,6 +2,7 @@ import 'package:local_storage_api/local_storage_api.dart';
 import 'package:cloud_storage_api/cloud_storage_api.dart'; 
 import 'package:drift/drift.dart' as drift;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert'; // 🌟 مكتبة الـ JSON
 
 class CrmRepository {
   const CrmRepository({
@@ -52,9 +53,30 @@ class CrmRepository {
     await _cloudStorage.removeDevice(deviceId);
   }
 
-  /// 🌟 جلب قائمة الأجهزة المرتبطة بالحساب
+  // 🌟 الدالة العبقرية الجديدة (تخزين مؤقت للأجهزة)
   Future<List<Map<String, dynamic>>> getRegisteredDevices() async {
-    return await _cloudStorage.fetchDevices();
+    final prefs = await SharedPreferences.getInstance();
+    
+    try {
+      // 1. نحاول جلب الأجهزة من السحابة (لو فيه إنترنت)
+      final devices = await _cloudStorage.fetchDevices();
+      
+      // 2. نحفظها كـ JSON في ذاكرة الهاتف لكي نستخدمها لاحقاً لو انقطع الإنترنت!
+      await prefs.setString('cached_devices', jsonEncode(devices));
+      
+      return devices;
+    } catch (e) {
+      // 3. ✈️ حالة انقطاع الإنترنت: نقرأ الذاكرة المحفوظة!
+      final cachedString = prefs.getString('cached_devices');
+      if (cachedString != null) {
+        final List<dynamic> decoded = jsonDecode(cachedString);
+        // تحويلها لـ List<Map> ليفهمها التطبيق
+        return decoded.map((e) => e as Map<String, dynamic>).toList();
+      }
+      
+      // 4. إذا لم يكن هناك إنترنت، ولم نفتح التطبيق سابقاً أبداً (حالة نادرة جداً)
+      return[];
+    }
   }
 
   // ==========================================

@@ -5,7 +5,8 @@ import 'package:local_storage_api/local_storage_api.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telephony/telephony.dart';
-import 'package:android_id/android_id.dart'; // 🌟
+import 'package:android_id/android_id.dart';
+
 part 'dashboard_state.dart';
 
 class DashboardCubit extends Cubit<DashboardState> {
@@ -17,7 +18,7 @@ class DashboardCubit extends Cubit<DashboardState> {
   final Telephony telephony = Telephony.instance;
 
   // ==========================================
-  // 1. تحميل بيانات لوحة التحكم
+  // 1. تحميل الإحصائيات والأجهزة
   // ==========================================
   Future<void> loadDashboard() async {
     try {
@@ -28,6 +29,13 @@ class DashboardCubit extends Cubit<DashboardState> {
 
       final prefs = await SharedPreferences.getInstance();
       final isRunning = prefs.getBool('is_engine_running') ?? false;
+      final currentDeviceId = prefs.getString('registered_device_id');
+
+      // 🌟 جلب قائمة الأجهزة المرتبطة
+      List<Map<String, dynamic>> devices =[];
+      try {
+        devices = await _repository.getRegisteredDevices();
+      } catch (_) {}
 
       emit(DashboardLoaded(
         contactsCount: contacts.length,
@@ -35,163 +43,139 @@ class DashboardCubit extends Cubit<DashboardState> {
         schedulesCount: schedules.length,
         recentLogs: logs,
         isEngineRunning: isRunning,
+        registeredDevices: devices, // 🌟 تمرير الأجهزة
+        currentDeviceId: currentDeviceId, // 🌟 تمرير هوية هذا الجهاز
       ));
     } catch (e) {
-      // تجاهل الأخطاء البسيطة
+      if (state is DashboardLoaded) {
+        emit((state as DashboardLoaded).copyWith(engineStatusMessage: 'فشل تحميل البيانات: $e'));
+      } else {
+        // حالة نادرة جداً: فشل التحميل من أول مرة
+        emit(DashboardLoaded(
+          contactsCount: 0, groupsCount: 0, schedulesCount: 0, 
+          recentLogs: [], registeredDevices: [], engineStatusMessage: 'فشل التحميل: $e'
+        ));
+      }
     }
   }
 
   // ==========================================
-  // 2. 🌟 تسجيل الجهاز في السحابة أو فك ارتباطه
+  // 2. تسجيل/فك ارتباط هذا الجهاز
   // ==========================================
   Future<void> toggleEngine({String? deviceName}) async {
     if (state is DashboardLoaded) {
       final currentState = state as DashboardLoaded;
       final isRunning = !currentState.isEngineRunning;
 
-      emit(DashboardLoaded(
-        contactsCount: currentState.contactsCount,
-        groupsCount: currentState.groupsCount,
-        schedulesCount: currentState.schedulesCount,
-        recentLogs: currentState.recentLogs,
-        isEngineRunning: currentState.isEngineRunning, // ننتظر حتى ننجح
-        engineStatusMessage: isRunning 
-            ? '🔄 جاري تسجيل الجهاز في السحابة...' 
-            : '🛑 جاري فك ارتباط هذا الجهاز...',
+      emit(currentState.copyWith(
+        engineStatusMessage: isRunning ? '🔄 جاري تسجيل الجهاز...' : '🛑 جاري فك الارتباط...',
+        clearMessage: true,
       ));
 
       final prefs = await SharedPreferences.getInstance();
 
       if (isRunning && deviceName != null) {
         try {
-          // 1. الفحص الصارم: طلب صلاحية الـ SMS
           if (Platform.isAndroid) {
             final smsGranted = await telephony.requestPhoneAndSmsPermissions;
-            if (smsGranted == null || !smsGranted) {
-              throw 'يجب الموافقة على صلاحية إرسال الـ SMS لكي يعمل النظام!';
-            }
+            if (smsGranted == null || !smsGranted) throw 'يجب الموافقة على صلاحية إرسال الـ SMS!';
           }
 
-          // 2. طلب صلاحية الإشعارات (للفايربيس) وجلب الرمز
           FirebaseMessaging messaging = FirebaseMessaging.instance;
           await messaging.requestPermission(alert: false, badge: false, sound: false, provisional: false);
-          // 3. جلب المفتاح والبصمة وإرسالهم للسحابة
+
           final fcmToken = await messaging.getToken();
-          
-          // 🌟 جلب البصمة المستحيلة التغيير (Android ID)
-          const androidIdPlugin = AndroidId();
-          final String hardwareId = await androidIdPlugin.getId() ?? 'unknown_device_${DateTime.now().millisecondsSinceEpoch}';
+          final String hardwareId = await const AndroidId().getId() ?? 'unknown_${DateTime.now().millisecondsSinceEpoch}';
 
           if (fcmToken != null) {
-            // 🌟 نمرر البصمة لدالة التسجيل (لم نعد نحتاج لتمرير existingId من الذاكرة لأنه يُمسح عند الحذف)
             final newDeviceId = await _repository.registerDevice(deviceName, fcmToken, hardwareId);
-            
             if (newDeviceId != null) {
               await prefs.setString('registered_device_id', newDeviceId);
             }
           }
 
           await prefs.setBool('is_engine_running', true);
+          await loadDashboard(); 
 
-          emit(DashboardLoaded(
-            contactsCount: currentState.contactsCount,
-            groupsCount: currentState.groupsCount,
-            schedulesCount: currentState.schedulesCount,
-            recentLogs: currentState.recentLogs,
-            isEngineRunning: true, 
-            engineStatusMessage: '📡 تم تسجيل جهاز ($deviceName) بنجاح!',
-          ));
+          if (state is DashboardLoaded) {
+             emit((state as DashboardLoaded).copyWith(engineStatusMessage: '📡 تم تسجيل الجهاز بنجاح!'));
+          }
 
         } catch (e) {
           await prefs.setBool('is_engine_running', false);
-          emit(DashboardLoaded(
-            contactsCount: currentState.contactsCount,
-            groupsCount: currentState.groupsCount,
-            schedulesCount: currentState.schedulesCount,
-            recentLogs: currentState.recentLogs,
-            isEngineRunning: false,
-            engineStatusMessage: '❌ فشل تسجيل الجهاز: $e',
-          ));
+          if (state is DashboardLoaded) {
+             emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشل التسجيل: $e', isEngineRunning: false));
+          }
         }
       } else {
-        // 🛑 المستخدم قرر فك ارتباط هذا الهاتف
         try {
           final existingId = prefs.getString('registered_device_id');
           if (existingId != null) {
-             // مسح الجهاز من السحابة تماماً
             await _repository.removeDevice(existingId);
             await prefs.remove('registered_device_id'); 
           }
-          
           await prefs.setBool('is_engine_running', false);
+          await loadDashboard(); 
 
-          emit(DashboardLoaded(
-            contactsCount: currentState.contactsCount,
-            groupsCount: currentState.groupsCount,
-            schedulesCount: currentState.schedulesCount,
-            recentLogs: currentState.recentLogs,
-            isEngineRunning: false,
-            engineStatusMessage: '🛑 تم فك ارتباط الهاتف بنجاح. لن يرسل رسائل بعد الآن.',
-          ));
+          if (state is DashboardLoaded) {
+             emit((state as DashboardLoaded).copyWith(engineStatusMessage: '🛑 تم فك ارتباط الهاتف بنجاح.', isEngineRunning: false));
+          }
         } catch (e) {
-          emit(DashboardLoaded(
-            contactsCount: currentState.contactsCount,
-            groupsCount: currentState.groupsCount,
-            schedulesCount: currentState.schedulesCount,
-            recentLogs: currentState.recentLogs,
-            isEngineRunning: true,
-            engineStatusMessage: '❌ فشل فك الارتباط: $e',
-          ));
+          if (state is DashboardLoaded) {
+             emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشل فك الارتباط: $e', isEngineRunning: true));
+          }
         }
       }
     }
   }
 
   // ==========================================
-  // 3. 🔄 المزامنة الشاملة الذكية
+  // 3. 🗑️ دالة حذف الأجهزة الشبحية (الأجهزة الأخرى)
+  // ==========================================
+  Future<void> removeLinkedDevice(String deviceId) async {
+    if (state is DashboardLoaded) {
+      final currentState = state as DashboardLoaded;
+      emit(currentState.copyWith(engineStatusMessage: '🗑️ جاري حذف الجهاز...', clearMessage: true));
+
+      try {
+        await _repository.removeDevice(deviceId); // مسح من السحابة
+        await loadDashboard(); // 🌟 إعادة تحميل القائمة
+        
+        if (state is DashboardLoaded) {
+          emit((state as DashboardLoaded).copyWith(engineStatusMessage: '✅ تم حذف الجهاز بنجاح!'));
+        }
+      } catch (e) {
+        if (state is DashboardLoaded) {
+          emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشل الحذف: $e'));
+        }
+      }
+    }
+  }
+
+  // ==========================================
+  // 4. المزامنة الذكية
   // ==========================================
   Future<void> syncDataToCloud() async {
     if (state is DashboardLoaded) {
       final currentState = state as DashboardLoaded;
-      
-      emit(DashboardLoaded(
-        contactsCount: currentState.contactsCount,
-        groupsCount: currentState.groupsCount,
-        schedulesCount: currentState.schedulesCount,
-        recentLogs: currentState.recentLogs,
-        isEngineRunning: currentState.isEngineRunning, 
-        engineStatusMessage: '🔄 جاري المزامنة الذكية...',
-      ));
+      emit(currentState.copyWith(engineStatusMessage: '🔄 جاري المزامنة الذكية...', clearMessage: true));
 
       try {
         final wasDownloaded = await _repository.downloadIfCloudIsNewer();
-        
         if (!wasDownloaded) {
           await _repository.syncAllToCloud();
         }
-        
         await loadDashboard(); 
         
-        final newState = state as DashboardLoaded;
-        emit(DashboardLoaded(
-          contactsCount: newState.contactsCount,
-          groupsCount: newState.groupsCount,
-          schedulesCount: newState.schedulesCount,
-          recentLogs: newState.recentLogs,
-          isEngineRunning: newState.isEngineRunning,
-          engineStatusMessage: wasDownloaded 
-              ? '✅ تم استيراد التحديثات الجديدة من السحابة!' 
-              : '✅ تم رفع بيانات هاتفك للسحابة بنجاح!',
-        ));
+        if (state is DashboardLoaded) {
+          emit((state as DashboardLoaded).copyWith(engineStatusMessage: 
+            wasDownloaded ? '✅ تم استيراد التحديثات من السحابة!' : '✅ تم رفع بياناتك للسحابة بنجاح!'
+          ));
+        }
       } catch (e) {
-        emit(DashboardLoaded(
-          contactsCount: currentState.contactsCount,
-          groupsCount: currentState.groupsCount,
-          schedulesCount: currentState.schedulesCount,
-          recentLogs: currentState.recentLogs,
-          isEngineRunning: currentState.isEngineRunning,
-          engineStatusMessage: '❌ فشلت المزامنة: $e',
-        ));
+        if (state is DashboardLoaded) {
+          emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشلت المزامنة: $e'));
+        }
       }
     }
   }

@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:android_id/android_id.dart'; 
+import 'package:device_info_plus/device_info_plus.dart'; 
 
 part 'campaigns_state.dart';
 
@@ -17,25 +18,14 @@ class CampaignsCubit extends Cubit<CampaignsState> {
 
   final CrmRepository _repository;
 
-  /// 🌟 جلب البيانات (مع دعم وضع الطيران/بدون إنترنت ✈️)
+  /// 🌟 جلب البيانات (المدير سيتكفل بالإنترنت والمخبأ تلقائياً)
   Future<void> loadCampaignsData() async {
     emit(CampaignsLoading());
     try {
       final groups = await _repository.getGroups();
       final schedules = await _repository.getSchedules();
-      
-      List<Map<String, dynamic>> devices =[];
-      try {
-        // 1. محاولة جلب الأجهزة من السحابة (تحتاج إنترنت)
-        devices = await _repository.getRegisteredDevices(); 
-      } catch (_) {
-        // 2. ✈️ حالة الطوارئ (لا يوجد إنترنت): نجلب الهاتف الحالي من الذاكرة
-        final prefs = await SharedPreferences.getInstance();
-        final localId = prefs.getString('registered_device_id');
-        if (localId != null) {
-          devices =[{'device_id': localId, 'device_name': 'هذا الهاتف (بدون إنترنت)'}];
-        }
-      }
+      // 🌟 الكود عاد نظيفاً جداً هنا
+      final devices = await _repository.getRegisteredDevices(); 
       
       emit(CampaignsLoaded(groups: groups, schedules: schedules, devices: devices));
     } catch (e) {
@@ -47,7 +37,7 @@ class CampaignsCubit extends Cubit<CampaignsState> {
     try {
       await _repository.addGroup(name);
       await loadCampaignsData(); 
-      _repository.syncAllToCloud().catchError((_) {}); // 🌟 تجاهل خطأ المزامنة إذا لم يوجد نت
+      _repository.syncAllToCloud().catchError((_) {}); 
     } catch (e) {
       emit(CampaignsError(message: 'خطأ في إنشاء المجموعة: $e'));
     }
@@ -73,7 +63,7 @@ class CampaignsCubit extends Cubit<CampaignsState> {
       await loadCampaignsData(); 
 
       _requestPermissionsAndLinkAsync();
-      _repository.syncAllToCloud().catchError((_) {}); // 🌟 حماية الأوفلاين
+      _repository.syncAllToCloud().catchError((_) {}); 
 
     } catch (e) {
       emit(CampaignsError(message: 'خطأ في إنشاء الحملة: $e'));
@@ -95,7 +85,17 @@ class CampaignsCubit extends Cubit<CampaignsState> {
         const androidIdPlugin = AndroidId();
         final String hardwareId = await androidIdPlugin.getId() ?? 'unknown_device_${DateTime.now().millisecondsSinceEpoch}';
 
-        final newDeviceId = await _repository.registerDevice('هاتف الإرسال الأساسي', fcmToken, hardwareId);
+        String deviceRealName = 'هاتف الإرسال';
+        try {
+          if (Platform.isAndroid) {
+            final deviceInfo = DeviceInfoPlugin();
+            final androidInfo = await deviceInfo.androidInfo;
+            final brand = androidInfo.brand.substring(0, 1).toUpperCase() + androidInfo.brand.substring(1);
+            deviceRealName = '$brand ${androidInfo.model}'; 
+          }
+        } catch (_) {}
+
+        final newDeviceId = await _repository.registerDevice(deviceRealName, fcmToken, hardwareId);
         
         if (newDeviceId != null) {
           final prefs = await SharedPreferences.getInstance();

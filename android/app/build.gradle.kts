@@ -64,17 +64,17 @@ android {
         create("production") {
             dimension = "default"
             applicationIdSuffix = ""
-            manifestPlaceholders["appName"] = "My Pro App"
+            manifestPlaceholders["appName"] = "Our Home SMS"
         }
         create("staging") {
             dimension = "default"
             applicationIdSuffix = ".stg"
-            manifestPlaceholders["appName"] = "[STG] My Pro App"
+            manifestPlaceholders["appName"] = "[STG] Our Home SMS"
         }
         create("development") {
             dimension = "default"
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appName"] = "[DEV] My Pro App"
+            manifestPlaceholders["appName"] = "Our Home SMS"
         }
     }
 

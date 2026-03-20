@@ -112,7 +112,7 @@ class CampaignsView extends StatelessWidget {
   }
 
   // ==========================================
-  // واجهة تبويب الحملات
+  // واجهة تبويب الحملات (تصميم محمي من التداخل 🛡️)
   // ==========================================
   Widget _buildCampaignsTab(
     BuildContext context,
@@ -130,8 +130,6 @@ class CampaignsView extends StatelessWidget {
                 final schedule = schedules[i];
                 final groupName = groups.firstWhere((g) => g.id == schedule.groupId, orElse: () => const Group(id: -1, name: 'مجموعة محذوفة')).name;
                 final deviceName = devices.firstWhere((d) => d['device_id'] == schedule.targetDeviceId, orElse: () => {'device_name': 'جهاز غير محدد'})['device_name'];
-                
-                // 🌟 عرض الوقت الجميل في الكرت
                 final time = TimeOfDay(hour: schedule.sendHour, minute: schedule.sendMinute).format(context);
 
                 return Card(
@@ -151,6 +149,7 @@ class CampaignsView extends StatelessWidget {
                             child: Icon(Icons.sms, color: Colors.white),
                           ),
                           const SizedBox(width: 16),
+                          // 🌟 استخدام Expanded يمنع النص الطويل من دفع الزر خارج الشاشة
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,23 +158,39 @@ class CampaignsView extends StatelessWidget {
                                 const SizedBox(height: 4),
                                 Text(schedule.message, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[700])),
                                 const SizedBox(height: 8),
+                                
+                                // 🌟 ترتيب الجهاز والوقت عمودياً لتجنب التداخل إذا كان اسم الجهاز طويلاً جداً
                                 Row(
                                   children:[
                                     const Icon(Icons.phone_android, size: 14, color: Colors.deepOrange),
                                     const SizedBox(width: 4),
-                                    Text(deviceName, style: const TextStyle(color: Colors.deepOrange, fontSize: 12, fontWeight: FontWeight.bold)),
-                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        deviceName, 
+                                        style: const TextStyle(color: Colors.deepOrange, fontSize: 12, fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis, // يضع ثلاث نقاط ... إذا كان الاسم طويلاً جداً
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children:[
                                     const Icon(Icons.calendar_month, size: 14, color: Colors.teal),
                                     const SizedBox(width: 4),
-                                    Text('يوم ${schedule.sendDay} - $time', style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    Text('يوم ${schedule.sendDay} - الساعة $time', style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          // 🌟 زر التشغيل والإيقاف (مع ألوان واضحة في حالتي التشغيل والإطفاء)
                           Switch(
                             value: schedule.isActive,
                             activeColor: Colors.teal,
+                            inactiveThumbColor: Colors.grey, // لون الدائرة وهي مطفأة
+                            inactiveTrackColor: Colors.grey.shade300, // لون المسار وهو مطفأ
                             onChanged: (_) => context.read<CampaignsCubit>().toggleScheduleActive(schedule),
                           ),
                         ],
