@@ -98,12 +98,42 @@ class CrmRepository {
   }
 
   Future<void> saveSyncedContacts(List<Map<String, String>> phoneContacts) async {
+    // 1. جلب جميع العملاء الموجودين حالياً في قاعدة البيانات المحلية
+    final existingContacts = await _localStorage.getAllContacts();
+
     for (var contact in phoneContacts) {
-      final companion = ContactsCompanion(
-        name: drift.Value(contact['name'] ?? 'بدون اسم'),
-        phone: drift.Value(contact['phone'] ?? ''),
-      );
-      await _localStorage.upsertContact(companion);
+      // تنظيف رقم الهاتف (إزالة المسافات والشرطات لضمان دقة المقارنة)
+      final phone = (contact['phone'] ?? '').replaceAll(RegExp(r'\s+|-'), '');
+      final name = contact['name'] ?? 'بدون اسم';
+
+      if (phone.isEmpty) continue; // تجاهل إذا لم يكن هناك رقم
+
+      // 2. البحث عما إذا كان هذا الرقم موجوداً مسبقاً
+      // نستخدم firstOrNull للبحث بأمان (تتطلب Dart 3 فما فوق)
+      final existingContact = existingContacts.where((c) {
+        final existingPhone = c.phone.replaceAll(RegExp(r'\s+|-'), '');
+        return existingPhone == phone;
+      }).firstOrNull;
+
+      if (existingContact != null) {
+        // 💡 الرقم موجود مسبقاً! 
+        // نقوم بتحديث الاسم (لربما تغير في الهاتف)، ولكننا نمرر الـ ID الخاص به
+        // لكي يفهم Drift أننا نريد التحديث (Update) وليس الإضافة (Insert).
+        final companion = ContactsCompanion(
+          id: drift.Value(existingContact.id), // 🔥 السر هنا: تمرير نفس الـ ID القديم
+          name: drift.Value(name),
+          phone: drift.Value(phone),
+          groupId: drift.Value(existingContact.groupId), // 🔥 الحفاظ على مجموعته الحالية
+        );
+        await _localStorage.upsertContact(companion);
+      } else {
+        // 💡 الرقم غير موجود! نضيفه كعميل جديد تماماً (بدون ID ليتم توليده تلقائياً)
+        final companion = ContactsCompanion(
+          name: drift.Value(name),
+          phone: drift.Value(phone),
+        );
+        await _localStorage.upsertContact(companion);
+      }
     }
   }
 
