@@ -137,8 +137,12 @@ class CrmRepository {
     }
   }
 
-  Future<int> deleteContact(Contact contact) async {
-    return await _localStorage.deleteContact(contact);
+  Future<void> deleteContact(Contact contact) async {
+    // 1. الحذف من قاعدة البيانات المحلية
+    await _localStorage.deleteContact(contact);
+    
+    // 2. الحذف من السحابة (Supabase) ☁️
+    await _cloudStorage.deleteContact(contact.id);
   }
 
   Future<void> updateContactGroup(Contact contact, int? groupId) async {
