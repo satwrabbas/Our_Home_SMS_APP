@@ -25,19 +25,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   try {
     final data = message.data;
-    final String? groupIdString = data['group_id']?.toString();
+    final String? groupId = data['group_id']?.toString(); // 🌟 نقرأه كنص ولا نحوله لرقم
     final String? smsBody = data['message']?.toString();
 
-    if (groupIdString == null || smsBody == null) return;
-
-    final int groupId = int.parse(groupIdString);
+    if (groupId == null || smsBody == null) return;
 
     final database = AppDatabase();
     final telephony = Telephony.instance;
 
     final allContacts = await database.getAllContacts();
+    // 🌟 نقارن النص بالنص
     final targetContacts = allContacts.where((c) => c.groupId == groupId).toList();
-
+// ... (باقي كود الإرسال كما هو)
     if (targetContacts.isEmpty) return;
 
     print("🚀 جاري إرسال $smsBody إلى ${targetContacts.length} عميل...");
