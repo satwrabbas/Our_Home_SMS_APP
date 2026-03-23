@@ -24,8 +24,29 @@ class ContactsCubit extends Cubit<ContactsState> {
     }
   }
 
-  /// 🌟 1. تعيين مجموعة لعميل واحد
-  Future<void> assignGroup(Contact contact, int? groupId) async {
+  Future<void> addManualContact(String name, String phone, String? groupId) async {
+    try {
+      await _repository.saveSyncedContacts([{'name': name, 'phone': phone}]);
+      
+      if (groupId != null) {
+        final allContacts = await _repository.getContacts();
+        final newContact = allContacts.firstWhere(
+          (c) => c.phone.replaceAll(RegExp(r'\s+|-'), '') == phone.replaceAll(RegExp(r'\s+|-'), ''),
+          orElse: () => const Contact(id: '', name: '', phone: '', groupId: null),
+        );
+        if (newContact.id.isNotEmpty) {
+          await _repository.updateContactGroup(newContact, groupId);
+        }
+      }
+
+      await loadContacts();
+      _repository.syncAllToCloud();
+    } catch (e) {
+      emit(ContactsError(message: 'خطأ في إضافة العميل: $e'));
+    }
+  }
+
+  Future<void> assignGroup(Contact contact, String? groupId) async {
     try {
       await _repository.updateContactGroup(contact, groupId);
       await loadContacts(); 
@@ -35,8 +56,7 @@ class ContactsCubit extends Cubit<ContactsState> {
     }
   }
 
-  /// 🌟 2. تعيين مجموعة لعدة عملاء دفعة واحدة (Bulk Assign)
-  Future<void> assignGroupToMultiple(List<Contact> contacts, int? groupId) async {
+  Future<void> assignGroupToMultiple(List<Contact> contacts, String? groupId) async {
     try {
       for (var contact in contacts) {
         await _repository.updateContactGroup(contact, groupId);
@@ -48,7 +68,6 @@ class ContactsCubit extends Cubit<ContactsState> {
     }
   }
 
-  /// 🌟 3. حذف عميل
   Future<void> deleteContact(Contact contact) async {
     try {
       await _repository.deleteContact(contact);
@@ -59,7 +78,6 @@ class ContactsCubit extends Cubit<ContactsState> {
     }
   }
 
-  /// 🌟 4. تعديل بيانات العميل
   Future<void> editContact(Contact contact, String newName, String newPhone) async {
     try {
       await _repository.updateContactInfo(contact, newName, newPhone);

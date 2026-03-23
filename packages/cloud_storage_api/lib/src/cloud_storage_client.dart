@@ -87,21 +87,22 @@ class CloudStorageClient {
   }
 
   // ==========================================
-  // قسم الحذف (Delete)
+  // قسم الحذف (Delete) - 🌟 محدث لنظام الـ UUID
   // ==========================================
-  Future<void> deleteGroup(int id) async {
+  
+  Future<void> deleteGroup(String id) async { // 🌟 String بدل int
     if (_currentUserId == null) return;
     await _supabaseClient.from('groups').delete().eq('id', id).eq('user_id', _currentUserId!);
   }
 
-  Future<void> deleteContact(int id) async {
-    if (_currentUserId == null) return;
-    await _supabaseClient.from('contacts').delete().eq('id', id).eq('user_id', _currentUserId!);
-  }
-  
-  Future<void> deleteSchedule(int id) async {
+  Future<void> deleteSchedule(String id) async { // 🌟 String بدل int
     if (_currentUserId == null) return;
     await _supabaseClient.from('schedules').delete().eq('id', id).eq('user_id', _currentUserId!);
+  }
+
+  Future<void> deleteContact(String id) async { // 🌟 String بدل int (إذا لم تكن موجودة، أضفها)
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('contacts').delete().eq('id', id).eq('user_id', _currentUserId!);
   }
 
   // ==========================================

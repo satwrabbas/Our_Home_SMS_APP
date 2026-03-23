@@ -1,7 +1,9 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:crm_repository/crm_repository.dart';
 import 'package:local_storage_api/local_storage_api.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import '../cubit/contacts_cubit.dart';
 
 class ContactsPage extends StatelessWidget {
@@ -27,9 +29,9 @@ class _ContactsViewState extends State<ContactsView> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   
-  // 🌟 متغيرات الميزات الجديدة
-  int? _selectedFilterGroupId; // null = الكل, -1 = بدون مجموعة
-  final Set<Contact> _selectedContacts = {}; // قائمة العملاء المحددين
+  // 🌟 تم التعديل إلى String? بدلاً من int?
+  String? _selectedFilterGroupId; 
+  final Set<Contact> _selectedContacts = {}; 
 
   bool get _isMultiSelectMode => _selectedContacts.isNotEmpty;
 
@@ -39,11 +41,6 @@ class _ContactsViewState extends State<ContactsView> {
     super.dispose();
   }
 
-  // ==========================================
-  // النوافذ (Dialogs & BottomSheets)
-  // ==========================================
-
-  // 1. نافذة تعيين المجموعة (سواء لعميل واحد أو لعدة عملاء)
   void _showAssignGroupDialog(BuildContext context, List<Group> groups, {Contact? singleContact}) {
     final cubit = context.read<ContactsCubit>();
     final isBulk = singleContact == null;
@@ -62,7 +59,7 @@ class _ContactsViewState extends State<ContactsView> {
                 title: const Text('بدون مجموعة'),
                 onTap: () {
                   isBulk ? cubit.assignGroupToMultiple(_selectedContacts.toList(), null) : cubit.assignGroup(singleContact!, null);
-                  if (isBulk) setState(() => _selectedContacts.clear()); // إنهاء وضع التحديد
+                  if (isBulk) setState(() => _selectedContacts.clear()); 
                   Navigator.pop(context);
                 },
               ),
@@ -83,41 +80,63 @@ class _ContactsViewState extends State<ContactsView> {
     );
   }
 
-  // 2. نافذة تعديل بيانات العميل
-  void _showEditContactDialog(BuildContext context, Contact contact) {
-    final nameController = TextEditingController(text: contact.name);
-    final phoneController = TextEditingController(text: contact.phone);
+  void _showAddOrEditContactDialog(BuildContext context, List<Group> groups, {Contact? contact}) {
+    final isEditing = contact != null;
+    final nameController = TextEditingController(text: isEditing ? contact.name : '');
+    final phoneController = TextEditingController(text: isEditing ? contact.phone : '');
+    
+    String? newContactGroupId;
+
     final cubit = context.read<ContactsCubit>();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تعديل بيانات العميل ✏️'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children:[
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'الاسم')),
-            const SizedBox(height: 8),
-            TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'رقم الهاتف')),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text(isEditing ? 'تعديل بيانات العميل ✏️' : 'إضافة عميل جديد 👤'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:[
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'الاسم')),
+                const SizedBox(height: 8),
+                TextField(controller: phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف')),
+                const SizedBox(height: 16),
+                
+                if (!isEditing && groups.isNotEmpty)
+                  DropdownButtonFormField<String?>(
+                    value: newContactGroupId,
+                    decoration: const InputDecoration(labelText: 'تعيين لمجموعة (اختياري)'),
+                    items:[
+                      const DropdownMenuItem(value: null, child: Text('بدون مجموعة')),
+                      ...groups.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))),
+                    ],
+                    onChanged: (val) => setStateDialog(() => newContactGroupId = val),
+                  ),
+              ],
+            ),
+          ),
+          actions:[
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isNotEmpty && phoneController.text.isNotEmpty) {
+                  if (isEditing) {
+                    cubit.editContact(contact, nameController.text.trim(), phoneController.text.trim());
+                  } else {
+                    cubit.addManualContact(nameController.text.trim(), phoneController.text.trim(), newContactGroupId);
+                  }
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(isEditing ? 'حفظ التعديلات' : 'إضافة'),
+            ),
           ],
         ),
-        actions:[
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty && phoneController.text.isNotEmpty) {
-                cubit.editContact(contact, nameController.text.trim(), phoneController.text.trim());
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('حفظ التعديلات'),
-          ),
-        ],
       ),
     );
   }
 
-  // 3. القائمة السفلية (BottomSheet) للإجراءات السريعة
   void _showContactOptions(BuildContext context, Contact contact, List<Group> groups) {
     showModalBottomSheet(
       context: context,
@@ -126,10 +145,31 @@ class _ContactsViewState extends State<ContactsView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children:[
-            const SizedBox(height: 8),
-            Text(contact.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text(contact.phone, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+            Text(contact.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(contact.phone, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+            const SizedBox(height: 16),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children:[
+                _buildActionButton(Icons.call, 'اتصال', Colors.blue, () async {
+                  final url = Uri.parse('tel:${contact.phone}');
+                  if (await canLaunchUrl(url)) await launchUrl(url);
+                }),
+                _buildActionButton(Icons.chat, 'واتساب', Colors.green, () async {
+                  final cleanPhone = contact.phone.replaceAll(RegExp(r'\D'), '');
+                  final url = Uri.parse('https://wa.me/$cleanPhone');
+                  if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+                }),
+                _buildActionButton(Icons.message, 'رسالة SMS', Colors.orange, () async {
+                  final url = Uri.parse('sms:${contact.phone}');
+                  if (await canLaunchUrl(url)) await launchUrl(url);
+                }),
+              ],
+            ),
             const Divider(),
+            
             ListTile(
               leading: const Icon(Icons.label, color: Colors.blue),
               title: const Text('تعيين مجموعة'),
@@ -138,7 +178,7 @@ class _ContactsViewState extends State<ContactsView> {
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.teal),
               title: const Text('تعديل البيانات'),
-              onTap: () { Navigator.pop(context); _showEditContactDialog(context, contact); },
+              onTap: () { Navigator.pop(context); _showAddOrEditContactDialog(context, groups, contact: contact); },
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
@@ -154,15 +194,27 @@ class _ContactsViewState extends State<ContactsView> {
     );
   }
 
-  // ==========================================
-  // واجهة المستخدم (UI)
-  // ==========================================
+  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children:[
+            CircleAvatar(radius: 24, backgroundColor: color.withOpacity(0.2), child: Icon(icon, color: color, size: 28)),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ContactsCubit, ContactsState>(
       builder: (context, state) {
-        
-        // 🌟 بناء شريط التطبيق (يتغير إذا كنا في وضع التحديد المتعدد)
         final appBar = _isMultiSelectMode
             ? AppBar(
                 backgroundColor: Colors.teal,
@@ -183,14 +235,22 @@ class _ContactsViewState extends State<ContactsView> {
             : AppBar(
                 title: const Text('العملاء (CRM)'),
                 actions:[
-                  IconButton(icon: const Icon(Icons.sync_outlined), tooltip: 'مزامنة من الهاتف', onPressed: () => context.read<ContactsCubit>().syncFromPhone()),
-                  IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent), tooltip: 'تسجيل الخروج', onPressed: () => context.read<CrmRepository>().signOut()),
+                  IconButton(icon: const Icon(Icons.sync_outlined), tooltip: 'مزامنة الأسماء من الهاتف', onPressed: () => context.read<ContactsCubit>().syncFromPhone()),
                 ],
               );
 
         return Scaffold(
           appBar: appBar,
           body: _buildBody(context, state),
+          floatingActionButton: !_isMultiSelectMode && state is ContactsLoaded
+              ? FloatingActionButton.extended(
+                  onPressed: () => _showAddOrEditContactDialog(context, state.groups),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('إضافة عميل'),
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                )
+              : null,
         );
       },
     );
@@ -206,14 +266,12 @@ class _ContactsViewState extends State<ContactsView> {
       final contacts = state.contacts;
       final groups = state.groups;
 
-      // 🌟 التصفية المزدوجة (بحث نصي + تصفية بالمجموعة)
       final filteredContacts = contacts.where((c) {
-        // 1. فلتر البحث النصي
         final matchesSearch = c.name.toLowerCase().contains(_searchQuery.toLowerCase()) || c.phone.contains(_searchQuery);
-        // 2. فلتر المجموعات
         bool matchesGroup = true;
-        if (_selectedFilterGroupId == -1) {
-          matchesGroup = c.groupId == null; // بدون مجموعة
+        // 🌟 التعديل هنا ليتوافق مع النصوص
+        if (_selectedFilterGroupId == 'none') {
+          matchesGroup = c.groupId == null; 
         } else if (_selectedFilterGroupId != null) {
           matchesGroup = c.groupId == _selectedFilterGroupId;
         }
@@ -222,7 +280,6 @@ class _ContactsViewState extends State<ContactsView> {
 
       return Column(
         children:[
-          // شريط البحث
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
@@ -236,7 +293,6 @@ class _ContactsViewState extends State<ContactsView> {
             ),
           ),
           
-          // 🌟 شريط شرائح التصفية (Filter Chips)
           SizedBox(
             height: 50,
             child: ListView(
@@ -249,8 +305,8 @@ class _ContactsViewState extends State<ContactsView> {
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
-                  label: const Text('بدون مجموعة', style: TextStyle(color: Colors.deepOrange)), selected: _selectedFilterGroupId == -1,
-                  onSelected: (val) => setState(() => _selectedFilterGroupId = val ? -1 : null),
+                  label: const Text('بدون مجموعة', style: TextStyle(color: Colors.deepOrange)), selected: _selectedFilterGroupId == 'none',
+                  onSelected: (val) => setState(() => _selectedFilterGroupId = val ? 'none' : null),
                 ),
                 const SizedBox(width: 8),
                 ...groups.map((g) => Padding(
@@ -268,10 +324,24 @@ class _ContactsViewState extends State<ContactsView> {
 
           const Divider(),
 
-          // 🌟 قائمة العملاء المصفاة
           Expanded(
             child: filteredContacts.isEmpty
-                ? const Center(child: Text('لم يتم العثور على عميل يطابق بحثك 🕵️‍♂️', style: TextStyle(color: Colors.grey)))
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children:[
+                        const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('لا يوجد عملاء هنا', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddOrEditContactDialog(context, groups), 
+                          icon: const Icon(Icons.add), 
+                          label: const Text('إضافة عميل جديد')
+                        )
+                      ],
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: filteredContacts.length,
                     itemBuilder: (context, index) {
@@ -290,33 +360,23 @@ class _ContactsViewState extends State<ContactsView> {
                       return ListTile(
                         selected: isSelected,
                         selectedTileColor: Colors.teal.withOpacity(0.1),
-                        // تغيير الأيقونة لمربع تحديد إذا كنا في وضع التحديد المتعدد
                         leading: _isMultiSelectMode
                             ? Checkbox(
                                 value: isSelected,
                                 activeColor: Colors.teal,
-                                onChanged: (_) {
-                                  setState(() {
-                                    isSelected ? _selectedContacts.remove(contact) : _selectedContacts.add(contact);
-                                  });
-                                })
+                                onChanged: (_) => setState(() => isSelected ? _selectedContacts.remove(contact) : _selectedContacts.add(contact)),
+                              )
                             : const CircleAvatar(child: Icon(Icons.person)),
                         title: Text(contact.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(contact.phone),
                         trailing: Chip(label: Text(groupName, style: const TextStyle(fontSize: 10, color: Colors.white)), backgroundColor: groupColor),
                         
-                        // 🌟 ضغطة مطولة لبدء التحديد المتعدد
-                        onLongPress: () {
-                          setState(() { _selectedContacts.add(contact); });
-                        },
+                        onLongPress: () => setState(() => _selectedContacts.add(contact)),
                         
-                        // 🌟 ضغطة عادية
                         onTap: () {
                           if (_isMultiSelectMode) {
-                            // إذا كنا في وضع التحديد، الضغطة تحدد/تلغي التحديد
-                            setState(() { isSelected ? _selectedContacts.remove(contact) : _selectedContacts.add(contact); });
+                            setState(() => isSelected ? _selectedContacts.remove(contact) : _selectedContacts.add(contact));
                           } else {
-                            // إذا كان الوضع طبيعياً، نفتح خيارات العميل
                             _showContactOptions(context, contact, groups);
                           }
                         },

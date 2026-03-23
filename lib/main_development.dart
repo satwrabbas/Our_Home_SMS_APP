@@ -13,7 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:telephony/telephony.dart';
 
 // ==========================================
-// 👻 دالة الاستيقاظ الصامت (النسخة النهائية المستقرة)
+// 👻 دالة الاستيقاظ الصامت (نسخة الدبابة 🛡️ - لا تستسلم أبداً)
 // ==========================================
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -21,19 +21,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  print('👻 إشارة صامتة وصلت من السحابة!');
+  print("👻 إشارة صامتة وصلت من السحابة!");
 
   try {
     final data = message.data;
-    final groupIdString = data['group_id']?.toString();
-    final smsBody = data['message']?.toString();
+    final String? groupIdString = data['group_id']?.toString();
+    final String? smsBody = data['message']?.toString();
 
-    if (groupIdString == null || smsBody == null) {
-      print('❌ بيانات الحملة ناقصة!');
-      return;
-    }
+    if (groupIdString == null || smsBody == null) return;
 
-    final groupId = int.parse(groupIdString);
+    final int groupId = int.parse(groupIdString);
 
     final database = AppDatabase();
     final telephony = Telephony.instance;
@@ -43,33 +40,57 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
     if (targetContacts.isEmpty) return;
 
-    print('🚀 جاري إرسال $smsBody إلى ${targetContacts.length} عميل...');
+    print("🚀 جاري إرسال $smsBody إلى ${targetContacts.length} عميل...");
 
-    for (final contact in targetContacts) {
-      try {
-        // 🌟 1. إطلاق الرسالة (Fire and Forget) بدون await
-        telephony.sendSms(to: contact.phone, message: smsBody);
-        
-        // 🌟 2. الحفظ في قاعدة البيانات بأمان
-        await database.insertMessage(MessagesCompanion(
-          phone: drift.Value(contact.phone),
-          body: drift.Value(smsBody),
-          type: const drift.Value('sent_auto_fcm'),
-          messageDate: drift.Value(DateTime.now()),
-        ));
-        
-        print('✅ تم إرسال وحفظ رسالة الرقم: ${contact.phone}');
-      } catch (e) {
-        print('❌ خطأ في رقم ${contact.phone}: $e');
+    for (var contact in targetContacts) {
+      
+      // 🌟 خوارزمية المحاولة المستميتة (Retry Logic)
+      bool isSent = false;
+      int retryCount = 0;
+      const int maxRetries = 3; // سنحاول 3 مرات كحد أقصى
+
+      while (!isSent && retryCount < maxRetries) {
+        try {
+          // 1. محاولة الإرسال
+          telephony.sendSms(to: contact.phone, message: smsBody);
+          isSent = true; // نجحنا! نكسر الحلقة
+          
+          // 2. الحفظ في قاعدة البيانات كـ (ناجح)
+          await database.insertMessage(MessagesCompanion(
+            phone: drift.Value(contact.phone),
+            body: drift.Value(smsBody),
+            type: const drift.Value('sent_auto_fcm'),
+            messageDate: drift.Value(DateTime.now()),
+          ));
+          print("✅ تم إرسال وحفظ رسالة الرقم: ${contact.phone}");
+          
+        } catch (e) {
+          retryCount++;
+          print("⚠️ فشل الإرسال للرقم ${contact.phone}. المحاولة $retryCount من $maxRetries...");
+          
+          if (retryCount >= maxRetries) {
+            // 3. استسلمنا بعد 3 محاولات، نحفظها في القاعدة كـ (فاشلة) ليعرف المستخدم
+            await database.insertMessage(MessagesCompanion(
+              phone: drift.Value(contact.phone),
+              body: drift.Value("❌ فشل الإرسال: $smsBody"),
+              type: const drift.Value('failed_auto_fcm'),
+              messageDate: drift.Value(DateTime.now()),
+            ));
+            print("❌ استسلام. لم يتم الإرسال بسبب غياب شبكة الشريحة.");
+          } else {
+            // ⏱️ إذا فشلنا، ننتظر 30 ثانية قبل المحاولة التالية (لعل شبكة الهاتف تعود)
+            await Future.delayed(const Duration(seconds: 30));
+          }
+        }
       }
 
-      await Future.delayed(const Duration(seconds: 1)); // حماية الشريحة
+      await Future.delayed(const Duration(seconds: 1)); // حماية الشريحة بين كل عميل وآخر
     }
 
-    print('✅✅ تمت مهمة الشبح بالكامل بنجاح! العودة للنوم 💤');
+    print("✅✅ تمت مهمة الشبح بالكامل بنجاح! العودة للنوم 💤");
 
   } catch (e) {
-    print('❌ حدث خطأ في مهمة الخلفية: $e');
+    print("❌ حدث خطأ في مهمة الخلفية: $e");
   }
 }
 

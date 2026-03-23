@@ -10,16 +10,12 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
   $GroupsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -46,6 +42,8 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -65,7 +63,7 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Group(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       name: attachedDatabase.typeMapping.read(
@@ -82,13 +80,13 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
 }
 
 class Group extends DataClass implements Insertable<Group> {
-  final int id;
+  final String id;
   final String name;
   const Group({required this.id, required this.name});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     return map;
   }
@@ -103,7 +101,7 @@ class Group extends DataClass implements Insertable<Group> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Group(
-      id: serializer.fromJson<int>(json['id']),
+      id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
     );
   }
@@ -111,12 +109,12 @@ class Group extends DataClass implements Insertable<Group> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
+      'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
     };
   }
 
-  Group copyWith({int? id, String? name}) =>
+  Group copyWith({String? id, String? name}) =>
       Group(id: id ?? this.id, name: name ?? this.name);
   Group copyWithCompanion(GroupsCompanion data) {
     return Group(
@@ -143,36 +141,55 @@ class Group extends DataClass implements Insertable<Group> {
 }
 
 class GroupsCompanion extends UpdateCompanion<Group> {
-  final Value<int> id;
+  final Value<String> id;
   final Value<String> name;
+  final Value<int> rowid;
   const GroupsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
-  GroupsCompanion.insert({this.id = const Value.absent(), required String name})
-    : name = Value(name);
+  GroupsCompanion.insert({
+    required String id,
+    required String name,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
   static Insertable<Group> custom({
-    Expression<int>? id,
+    Expression<String>? id,
     Expression<String>? name,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
-  GroupsCompanion copyWith({Value<int>? id, Value<String>? name}) {
-    return GroupsCompanion(id: id ?? this.id, name: name ?? this.name);
+  GroupsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? rowid,
+  }) {
+    return GroupsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      rowid: rowid ?? this.rowid,
+    );
   }
 
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -181,7 +198,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
   String toString() {
     return (StringBuffer('GroupsCompanion(')
           ..write('id: $id, ')
-          ..write('name: $name')
+          ..write('name: $name, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -194,16 +212,12 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
   $ContactsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -232,11 +246,11 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     'groupId',
   );
   @override
-  late final GeneratedColumn<int> groupId = GeneratedColumn<int>(
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
     'group_id',
     aliasedName,
     true,
-    type: DriftSqlType.int,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES "groups" (id)',
@@ -258,6 +272,8 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -291,7 +307,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Contact(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       name: attachedDatabase.typeMapping.read(
@@ -303,7 +319,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         data['${effectivePrefix}phone'],
       )!,
       groupId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}group_id'],
       ),
     );
@@ -316,10 +332,10 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
 }
 
 class Contact extends DataClass implements Insertable<Contact> {
-  final int id;
+  final String id;
   final String name;
   final String phone;
-  final int? groupId;
+  final String? groupId;
   const Contact({
     required this.id,
     required this.name,
@@ -329,11 +345,11 @@ class Contact extends DataClass implements Insertable<Contact> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['phone'] = Variable<String>(phone);
     if (!nullToAbsent || groupId != null) {
-      map['group_id'] = Variable<int>(groupId);
+      map['group_id'] = Variable<String>(groupId);
     }
     return map;
   }
@@ -355,28 +371,28 @@ class Contact extends DataClass implements Insertable<Contact> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Contact(
-      id: serializer.fromJson<int>(json['id']),
+      id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       phone: serializer.fromJson<String>(json['phone']),
-      groupId: serializer.fromJson<int?>(json['groupId']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
     );
   }
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
+      'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'phone': serializer.toJson<String>(phone),
-      'groupId': serializer.toJson<int?>(groupId),
+      'groupId': serializer.toJson<String?>(groupId),
     };
   }
 
   Contact copyWith({
-    int? id,
+    String? id,
     String? name,
     String? phone,
-    Value<int?> groupId = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
   }) => Contact(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -416,48 +432,56 @@ class Contact extends DataClass implements Insertable<Contact> {
 }
 
 class ContactsCompanion extends UpdateCompanion<Contact> {
-  final Value<int> id;
+  final Value<String> id;
   final Value<String> name;
   final Value<String> phone;
-  final Value<int?> groupId;
+  final Value<String?> groupId;
+  final Value<int> rowid;
   const ContactsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.phone = const Value.absent(),
     this.groupId = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   ContactsCompanion.insert({
-    this.id = const Value.absent(),
+    required String id,
     required String name,
     required String phone,
     this.groupId = const Value.absent(),
-  }) : name = Value(name),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
        phone = Value(phone);
   static Insertable<Contact> custom({
-    Expression<int>? id,
+    Expression<String>? id,
     Expression<String>? name,
     Expression<String>? phone,
-    Expression<int>? groupId,
+    Expression<String>? groupId,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (phone != null) 'phone': phone,
       if (groupId != null) 'group_id': groupId,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   ContactsCompanion copyWith({
-    Value<int>? id,
+    Value<String>? id,
     Value<String>? name,
     Value<String>? phone,
-    Value<int?>? groupId,
+    Value<String?>? groupId,
+    Value<int>? rowid,
   }) {
     return ContactsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       groupId: groupId ?? this.groupId,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -465,7 +489,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -474,7 +498,10 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       map['phone'] = Variable<String>(phone.value);
     }
     if (groupId.present) {
-      map['group_id'] = Variable<int>(groupId.value);
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -485,7 +512,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('phone: $phone, ')
-          ..write('groupId: $groupId')
+          ..write('groupId: $groupId, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -499,26 +527,22 @@ class $SchedulesTable extends Schedules
   $SchedulesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _groupIdMeta = const VerificationMeta(
     'groupId',
   );
   @override
-  late final GeneratedColumn<int> groupId = GeneratedColumn<int>(
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
     'group_id',
     aliasedName,
     false,
-    type: DriftSqlType.int,
+    type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES "groups" (id)',
@@ -633,6 +657,8 @@ class $SchedulesTable extends Schedules
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('group_id')) {
       context.handle(
@@ -704,11 +730,11 @@ class $SchedulesTable extends Schedules
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Schedule(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       groupId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}group_id'],
       )!,
       message: attachedDatabase.typeMapping.read(
@@ -749,8 +775,8 @@ class $SchedulesTable extends Schedules
 }
 
 class Schedule extends DataClass implements Insertable<Schedule> {
-  final int id;
-  final int groupId;
+  final String id;
+  final String groupId;
   final String message;
   final int sendDay;
   final int sendHour;
@@ -772,8 +798,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['group_id'] = Variable<int>(groupId);
+    map['id'] = Variable<String>(id);
+    map['group_id'] = Variable<String>(groupId);
     map['message'] = Variable<String>(message);
     map['send_day'] = Variable<int>(sendDay);
     map['send_hour'] = Variable<int>(sendHour);
@@ -812,8 +838,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Schedule(
-      id: serializer.fromJson<int>(json['id']),
-      groupId: serializer.fromJson<int>(json['groupId']),
+      id: serializer.fromJson<String>(json['id']),
+      groupId: serializer.fromJson<String>(json['groupId']),
       message: serializer.fromJson<String>(json['message']),
       sendDay: serializer.fromJson<int>(json['sendDay']),
       sendHour: serializer.fromJson<int>(json['sendHour']),
@@ -827,8 +853,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'groupId': serializer.toJson<int>(groupId),
+      'id': serializer.toJson<String>(id),
+      'groupId': serializer.toJson<String>(groupId),
       'message': serializer.toJson<String>(message),
       'sendDay': serializer.toJson<int>(sendDay),
       'sendHour': serializer.toJson<int>(sendHour),
@@ -840,8 +866,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   }
 
   Schedule copyWith({
-    int? id,
-    int? groupId,
+    String? id,
+    String? groupId,
     String? message,
     int? sendDay,
     int? sendHour,
@@ -926,8 +952,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
 }
 
 class SchedulesCompanion extends UpdateCompanion<Schedule> {
-  final Value<int> id;
-  final Value<int> groupId;
+  final Value<String> id;
+  final Value<String> groupId;
   final Value<String> message;
   final Value<int> sendDay;
   final Value<int> sendHour;
@@ -935,6 +961,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
   final Value<String?> targetDeviceId;
   final Value<DateTime?> lastSentDate;
   final Value<bool> isActive;
+  final Value<int> rowid;
   const SchedulesCompanion({
     this.id = const Value.absent(),
     this.groupId = const Value.absent(),
@@ -945,10 +972,11 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     this.targetDeviceId = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   SchedulesCompanion.insert({
-    this.id = const Value.absent(),
-    required int groupId,
+    required String id,
+    required String groupId,
     required String message,
     required int sendDay,
     this.sendHour = const Value.absent(),
@@ -956,12 +984,14 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     this.targetDeviceId = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
-  }) : groupId = Value(groupId),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       groupId = Value(groupId),
        message = Value(message),
        sendDay = Value(sendDay);
   static Insertable<Schedule> custom({
-    Expression<int>? id,
-    Expression<int>? groupId,
+    Expression<String>? id,
+    Expression<String>? groupId,
     Expression<String>? message,
     Expression<int>? sendDay,
     Expression<int>? sendHour,
@@ -969,6 +999,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Expression<String>? targetDeviceId,
     Expression<DateTime>? lastSentDate,
     Expression<bool>? isActive,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -980,12 +1011,13 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       if (targetDeviceId != null) 'target_device_id': targetDeviceId,
       if (lastSentDate != null) 'last_sent_date': lastSentDate,
       if (isActive != null) 'is_active': isActive,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   SchedulesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? groupId,
+    Value<String>? id,
+    Value<String>? groupId,
     Value<String>? message,
     Value<int>? sendDay,
     Value<int>? sendHour,
@@ -993,6 +1025,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Value<String?>? targetDeviceId,
     Value<DateTime?>? lastSentDate,
     Value<bool>? isActive,
+    Value<int>? rowid,
   }) {
     return SchedulesCompanion(
       id: id ?? this.id,
@@ -1004,6 +1037,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       targetDeviceId: targetDeviceId ?? this.targetDeviceId,
       lastSentDate: lastSentDate ?? this.lastSentDate,
       isActive: isActive ?? this.isActive,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -1011,10 +1045,10 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (groupId.present) {
-      map['group_id'] = Variable<int>(groupId.value);
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (message.present) {
       map['message'] = Variable<String>(message.value);
@@ -1037,6 +1071,9 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -1051,7 +1088,8 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
           ..write('sendMinute: $sendMinute, ')
           ..write('targetDeviceId: $targetDeviceId, ')
           ..write('lastSentDate: $lastSentDate, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -1064,16 +1102,12 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
   $MessagesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
   @override
@@ -1129,6 +1163,8 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('phone')) {
       context.handle(
@@ -1175,7 +1211,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Message(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       phone: attachedDatabase.typeMapping.read(
@@ -1204,7 +1240,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
 }
 
 class Message extends DataClass implements Insertable<Message> {
-  final int id;
+  final String id;
   final String phone;
   final String body;
   final String type;
@@ -1219,7 +1255,7 @@ class Message extends DataClass implements Insertable<Message> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     map['phone'] = Variable<String>(phone);
     map['body'] = Variable<String>(body);
     map['type'] = Variable<String>(type);
@@ -1243,7 +1279,7 @@ class Message extends DataClass implements Insertable<Message> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Message(
-      id: serializer.fromJson<int>(json['id']),
+      id: serializer.fromJson<String>(json['id']),
       phone: serializer.fromJson<String>(json['phone']),
       body: serializer.fromJson<String>(json['body']),
       type: serializer.fromJson<String>(json['type']),
@@ -1254,7 +1290,7 @@ class Message extends DataClass implements Insertable<Message> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
+      'id': serializer.toJson<String>(id),
       'phone': serializer.toJson<String>(phone),
       'body': serializer.toJson<String>(body),
       'type': serializer.toJson<String>(type),
@@ -1263,7 +1299,7 @@ class Message extends DataClass implements Insertable<Message> {
   }
 
   Message copyWith({
-    int? id,
+    String? id,
     String? phone,
     String? body,
     String? type,
@@ -1313,34 +1349,39 @@ class Message extends DataClass implements Insertable<Message> {
 }
 
 class MessagesCompanion extends UpdateCompanion<Message> {
-  final Value<int> id;
+  final Value<String> id;
   final Value<String> phone;
   final Value<String> body;
   final Value<String> type;
   final Value<DateTime> messageDate;
+  final Value<int> rowid;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.phone = const Value.absent(),
     this.body = const Value.absent(),
     this.type = const Value.absent(),
     this.messageDate = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   MessagesCompanion.insert({
-    this.id = const Value.absent(),
+    required String id,
     required String phone,
     required String body,
     required String type,
     required DateTime messageDate,
-  }) : phone = Value(phone),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       phone = Value(phone),
        body = Value(body),
        type = Value(type),
        messageDate = Value(messageDate);
   static Insertable<Message> custom({
-    Expression<int>? id,
+    Expression<String>? id,
     Expression<String>? phone,
     Expression<String>? body,
     Expression<String>? type,
     Expression<DateTime>? messageDate,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1348,15 +1389,17 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (body != null) 'body': body,
       if (type != null) 'type': type,
       if (messageDate != null) 'message_date': messageDate,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   MessagesCompanion copyWith({
-    Value<int>? id,
+    Value<String>? id,
     Value<String>? phone,
     Value<String>? body,
     Value<String>? type,
     Value<DateTime>? messageDate,
+    Value<int>? rowid,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -1364,6 +1407,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       body: body ?? this.body,
       type: type ?? this.type,
       messageDate: messageDate ?? this.messageDate,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -1371,7 +1415,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (phone.present) {
       map['phone'] = Variable<String>(phone.value);
@@ -1385,6 +1429,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (messageDate.present) {
       map['message_date'] = Variable<DateTime>(messageDate.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -1395,7 +1442,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('phone: $phone, ')
           ..write('body: $body, ')
           ..write('type: $type, ')
-          ..write('messageDate: $messageDate')
+          ..write('messageDate: $messageDate, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -1421,9 +1469,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 }
 
 typedef $$GroupsTableCreateCompanionBuilder =
-    GroupsCompanion Function({Value<int> id, required String name});
+    GroupsCompanion Function({
+      required String id,
+      required String name,
+      Value<int> rowid,
+    });
 typedef $$GroupsTableUpdateCompanionBuilder =
-    GroupsCompanion Function({Value<int> id, Value<String> name});
+    GroupsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<int> rowid,
+    });
 
 final class $$GroupsTableReferences
     extends BaseReferences<_$AppDatabase, $GroupsTable, Group> {
@@ -1440,7 +1496,7 @@ final class $$GroupsTableReferences
     final manager = $$ContactsTableTableManager(
       $_db,
       $_db.contacts,
-    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<int>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_contactsRefsTable($_db));
     return ProcessedTableManager(
@@ -1458,7 +1514,7 @@ final class $$GroupsTableReferences
     final manager = $$SchedulesTableTableManager(
       $_db,
       $_db.schedules,
-    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<int>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_schedulesRefsTable($_db));
     return ProcessedTableManager(
@@ -1476,7 +1532,7 @@ class $$GroupsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -1546,7 +1602,7 @@ class $$GroupsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1566,7 +1622,7 @@ class $$GroupsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -1651,12 +1707,16 @@ class $$GroupsTableTableManager
               $$GroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
-              }) => GroupsCompanion(id: id, name: name),
+                Value<int> rowid = const Value.absent(),
+              }) => GroupsCompanion(id: id, name: name, rowid: rowid),
           createCompanionCallback:
-              ({Value<int> id = const Value.absent(), required String name}) =>
-                  GroupsCompanion.insert(id: id, name: name),
+              ({
+                required String id,
+                required String name,
+                Value<int> rowid = const Value.absent(),
+              }) => GroupsCompanion.insert(id: id, name: name, rowid: rowid),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) =>
@@ -1736,17 +1796,19 @@ typedef $$GroupsTableProcessedTableManager =
     >;
 typedef $$ContactsTableCreateCompanionBuilder =
     ContactsCompanion Function({
-      Value<int> id,
+      required String id,
       required String name,
       required String phone,
-      Value<int?> groupId,
+      Value<String?> groupId,
+      Value<int> rowid,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
     ContactsCompanion Function({
-      Value<int> id,
+      Value<String> id,
       Value<String> name,
       Value<String> phone,
-      Value<int?> groupId,
+      Value<String?> groupId,
+      Value<int> rowid,
     });
 
 final class $$ContactsTableReferences
@@ -1758,7 +1820,7 @@ final class $$ContactsTableReferences
   );
 
   $$GroupsTableProcessedTableManager? get groupId {
-    final $_column = $_itemColumn<int>('group_id');
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
     final manager = $$GroupsTableTableManager(
       $_db,
@@ -1781,7 +1843,7 @@ class $$ContactsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -1829,7 +1891,7 @@ class $$ContactsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1877,7 +1939,7 @@ class $$ContactsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -1938,27 +2000,31 @@ class $$ContactsTableTableManager
               $$ContactsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> phone = const Value.absent(),
-                Value<int?> groupId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
                 name: name,
                 phone: phone,
                 groupId: groupId,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                required String id,
                 required String name,
                 required String phone,
-                Value<int?> groupId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion.insert(
                 id: id,
                 name: name,
                 phone: phone,
                 groupId: groupId,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -2029,8 +2095,8 @@ typedef $$ContactsTableProcessedTableManager =
     >;
 typedef $$SchedulesTableCreateCompanionBuilder =
     SchedulesCompanion Function({
-      Value<int> id,
-      required int groupId,
+      required String id,
+      required String groupId,
       required String message,
       required int sendDay,
       Value<int> sendHour,
@@ -2038,11 +2104,12 @@ typedef $$SchedulesTableCreateCompanionBuilder =
       Value<String?> targetDeviceId,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
+      Value<int> rowid,
     });
 typedef $$SchedulesTableUpdateCompanionBuilder =
     SchedulesCompanion Function({
-      Value<int> id,
-      Value<int> groupId,
+      Value<String> id,
+      Value<String> groupId,
       Value<String> message,
       Value<int> sendDay,
       Value<int> sendHour,
@@ -2050,6 +2117,7 @@ typedef $$SchedulesTableUpdateCompanionBuilder =
       Value<String?> targetDeviceId,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
+      Value<int> rowid,
     });
 
 final class $$SchedulesTableReferences
@@ -2061,7 +2129,7 @@ final class $$SchedulesTableReferences
   );
 
   $$GroupsTableProcessedTableManager get groupId {
-    final $_column = $_itemColumn<int>('group_id')!;
+    final $_column = $_itemColumn<String>('group_id')!;
 
     final manager = $$GroupsTableTableManager(
       $_db,
@@ -2084,7 +2152,7 @@ class $$SchedulesTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -2157,7 +2225,7 @@ class $$SchedulesTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -2230,7 +2298,7 @@ class $$SchedulesTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get message =>
@@ -2312,8 +2380,8 @@ class $$SchedulesTableTableManager
               $$SchedulesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                Value<int> groupId = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
                 Value<String> message = const Value.absent(),
                 Value<int> sendDay = const Value.absent(),
                 Value<int> sendHour = const Value.absent(),
@@ -2321,6 +2389,7 @@ class $$SchedulesTableTableManager
                 Value<String?> targetDeviceId = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => SchedulesCompanion(
                 id: id,
                 groupId: groupId,
@@ -2331,11 +2400,12 @@ class $$SchedulesTableTableManager
                 targetDeviceId: targetDeviceId,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                required int groupId,
+                required String id,
+                required String groupId,
                 required String message,
                 required int sendDay,
                 Value<int> sendHour = const Value.absent(),
@@ -2343,6 +2413,7 @@ class $$SchedulesTableTableManager
                 Value<String?> targetDeviceId = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => SchedulesCompanion.insert(
                 id: id,
                 groupId: groupId,
@@ -2353,6 +2424,7 @@ class $$SchedulesTableTableManager
                 targetDeviceId: targetDeviceId,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -2423,19 +2495,21 @@ typedef $$SchedulesTableProcessedTableManager =
     >;
 typedef $$MessagesTableCreateCompanionBuilder =
     MessagesCompanion Function({
-      Value<int> id,
+      required String id,
       required String phone,
       required String body,
       required String type,
       required DateTime messageDate,
+      Value<int> rowid,
     });
 typedef $$MessagesTableUpdateCompanionBuilder =
     MessagesCompanion Function({
-      Value<int> id,
+      Value<String> id,
       Value<String> phone,
       Value<String> body,
       Value<String> type,
       Value<DateTime> messageDate,
+      Value<int> rowid,
     });
 
 class $$MessagesTableFilterComposer
@@ -2447,7 +2521,7 @@ class $$MessagesTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -2482,7 +2556,7 @@ class $$MessagesTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -2517,7 +2591,7 @@ class $$MessagesTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get phone =>
@@ -2563,31 +2637,35 @@ class $$MessagesTableTableManager
               $$MessagesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                Value<String> id = const Value.absent(),
                 Value<String> phone = const Value.absent(),
                 Value<String> body = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<DateTime> messageDate = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
                 phone: phone,
                 body: body,
                 type: type,
                 messageDate: messageDate,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                required String id,
                 required String phone,
                 required String body,
                 required String type,
                 required DateTime messageDate,
+                Value<int> rowid = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
                 phone: phone,
                 body: body,
                 type: type,
                 messageDate: messageDate,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

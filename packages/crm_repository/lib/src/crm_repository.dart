@@ -1,8 +1,9 @@
+import 'dart:convert'; // 🌟 مكتبة ה- JSON
 import 'package:local_storage_api/local_storage_api.dart';
 import 'package:cloud_storage_api/cloud_storage_api.dart'; 
 import 'package:drift/drift.dart' as drift;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert'; // 🌟 مكتبة الـ JSON
+import 'package:uuid/uuid.dart'; // 🌟 مكتبة توليد المعرفات الفريدة (UUID)
 
 class CrmRepository {
   const CrmRepository({
@@ -13,6 +14,7 @@ class CrmRepository {
 
   final AppDatabase _localStorage;
   final CloudStorageClient _cloudStorage;
+  final _uuid = const Uuid(); // 🌟 مولد المعرفات
 
   // ==========================================
   // 1. قسم المصادقة والأجهزة ☁️📱
@@ -58,23 +60,15 @@ class CrmRepository {
     final prefs = await SharedPreferences.getInstance();
     
     try {
-      // 1. نحاول جلب الأجهزة من السحابة (لو فيه إنترنت)
       final devices = await _cloudStorage.fetchDevices();
-      
-      // 2. نحفظها كـ JSON في ذاكرة الهاتف لكي نستخدمها لاحقاً لو انقطع الإنترنت!
       await prefs.setString('cached_devices', jsonEncode(devices));
-      
       return devices;
     } catch (e) {
-      // 3. ✈️ حالة انقطاع الإنترنت: نقرأ الذاكرة المحفوظة!
       final cachedString = prefs.getString('cached_devices');
       if (cachedString != null) {
         final List<dynamic> decoded = jsonDecode(cachedString);
-        // تحويلها لـ List<Map> ليفهمها التطبيق
         return decoded.map((e) => e as Map<String, dynamic>).toList();
       }
-      
-      // 4. إذا لم يكن هناك إنترنت، ولم نفتح التطبيق سابقاً أبداً (حالة نادرة جداً)
       return[];
     }
   }
@@ -93,42 +87,42 @@ class CrmRepository {
     );
     await _localStorage.upsertContact(companion); // نستخدم Upsert ليعمل كتحديث
   }
+  
   Future<List<Contact>> getContacts() async {
     return await _localStorage.getAllContacts();
   }
 
   Future<void> saveSyncedContacts(List<Map<String, String>> phoneContacts) async {
-    // 1. جلب جميع العملاء الموجودين حالياً في قاعدة البيانات المحلية
+    // 1. جلب جميع العملاء الموجودين حالياً
     final existingContacts = await _localStorage.getAllContacts();
 
     for (var contact in phoneContacts) {
-      // تنظيف رقم الهاتف (إزالة المسافات والشرطات لضمان دقة المقارنة)
+      // تنظيف رقم الهاتف 
       final phone = (contact['phone'] ?? '').replaceAll(RegExp(r'\s+|-'), '');
       final name = contact['name'] ?? 'بدون اسم';
 
-      if (phone.isEmpty) continue; // تجاهل إذا لم يكن هناك رقم
+      if (phone.isEmpty) continue; 
 
       // 2. البحث عما إذا كان هذا الرقم موجوداً مسبقاً
-      // نستخدم firstOrNull للبحث بأمان (تتطلب Dart 3 فما فوق)
-      final existingContact = existingContacts.where((c) {
-        final existingPhone = c.phone.replaceAll(RegExp(r'\s+|-'), '');
-        return existingPhone == phone;
-      }).firstOrNull;
+      // (استخدام firstWhere مع orElse لتعمل بأمان على كل نسخ Dart)
+      final existingContact = existingContacts.firstWhere(
+        (c) => c.phone.replaceAll(RegExp(r'\s+|-'), '') == phone,
+        orElse: () => const Contact(id: '', name: '', phone: '', groupId: null),
+      );
 
-      if (existingContact != null) {
-        // 💡 الرقم موجود مسبقاً! 
-        // نقوم بتحديث الاسم (لربما تغير في الهاتف)، ولكننا نمرر الـ ID الخاص به
-        // لكي يفهم Drift أننا نريد التحديث (Update) وليس الإضافة (Insert).
+      if (existingContact.id.isNotEmpty) {
+        // 💡 الرقم موجود مسبقاً! نقوم بتحديث الاسم ونحافظ على ה-ID والمجموعة
         final companion = ContactsCompanion(
-          id: drift.Value(existingContact.id), // 🔥 السر هنا: تمرير نفس الـ ID القديم
+          id: drift.Value(existingContact.id),
           name: drift.Value(name),
           phone: drift.Value(phone),
-          groupId: drift.Value(existingContact.groupId), // 🔥 الحفاظ على مجموعته الحالية
+          groupId: drift.Value(existingContact.groupId),
         );
         await _localStorage.upsertContact(companion);
       } else {
-        // 💡 الرقم غير موجود! نضيفه كعميل جديد تماماً (بدون ID ليتم توليده تلقائياً)
+        // 💡 الرقم غير موجود! نضيفه كعميل جديد تماماً ونولد له UUID جديد
         final companion = ContactsCompanion(
+          id: drift.Value(_uuid.v4()), // 🌟 توليد ID فريد
           name: drift.Value(name),
           phone: drift.Value(phone),
         );
@@ -138,14 +132,11 @@ class CrmRepository {
   }
 
   Future<void> deleteContact(Contact contact) async {
-    // 1. الحذف من قاعدة البيانات المحلية
     await _localStorage.deleteContact(contact);
-    
-    // 2. الحذف من السحابة (Supabase) ☁️
     await _cloudStorage.deleteContact(contact.id);
   }
 
-  Future<void> updateContactGroup(Contact contact, int? groupId) async {
+  Future<void> updateContactGroup(Contact contact, String? groupId) async { // 🌟 String?
     await _localStorage.updateContactGroupDB(contact.id, groupId); 
   }
 
@@ -156,8 +147,11 @@ class CrmRepository {
     return await _localStorage.getAllGroups();
   }
 
-  Future<int> addGroup(String name) async {
-    return await _localStorage.insertGroup(GroupsCompanion(name: drift.Value(name)));
+  Future<void> addGroup(String name) async {
+    await _localStorage.upsertGroup(GroupsCompanion(
+      id: drift.Value(_uuid.v4()), // 🌟 توليد ID فريد
+      name: drift.Value(name),
+    ));
   }
 
   Future<void> deleteGroup(Group group) async {
@@ -174,24 +168,24 @@ class CrmRepository {
     return await _localStorage.getAllSchedules();
   }
 
-  /// 🌟 تمت إضافة targetDeviceId لدالة إنشاء الحملة
-  Future<int> addSchedule({
-    required int groupId, 
+  Future<void> addSchedule({
+    required String groupId, // 🌟 String
     required String message, 
     required int sendDay, 
     required int sendHour, 
     required int sendMinute,
-    String? targetDeviceId, // 🌟
+    String? targetDeviceId, 
   }) async {
     final companion = SchedulesCompanion(
+      id: drift.Value(_uuid.v4()), // 🌟 توليد ID فريد
       groupId: drift.Value(groupId), 
       message: drift.Value(message), 
       sendDay: drift.Value(sendDay),
       sendHour: drift.Value(sendHour), 
       sendMinute: drift.Value(sendMinute),
-      targetDeviceId: drift.Value(targetDeviceId), // 🌟
+      targetDeviceId: drift.Value(targetDeviceId), 
     );
-    return await _localStorage.insertSchedule(companion);
+    await _localStorage.upsertSchedule(companion);
   }
 
   Future<void> deleteSchedule(Schedule schedule) async {
@@ -210,15 +204,29 @@ class CrmRepository {
     return await _localStorage.getAllMessages();
   }
 
-  Future<int> addMessageLog({required String phone, required String body, required String type}) async {
-    return await _localStorage.insertMessage(MessagesCompanion(
-      phone: drift.Value(phone), body: drift.Value(body), type: drift.Value(type), messageDate: drift.Value(DateTime.now()), 
+  Future<void> addMessageLog({required String phone, required String body, required String type}) async {
+    await _localStorage.upsertMessage(MessagesCompanion(
+      id: drift.Value(_uuid.v4()), // 🌟 توليد ID فريد
+      phone: drift.Value(phone), 
+      body: drift.Value(body), 
+      type: drift.Value(type), 
+      messageDate: drift.Value(DateTime.now()), 
     ));
+
+    try {
+      await syncAllToCloud(); 
+    } catch (e) {
+      print('تم حفظ الرسالة محلياً، سيتم رفعها لاحقاً لعدم توفر اتصال: $e');
+    }
   }
 
   // ==========================================
   // 5. قسم المزامنة الشاملة ☁️
   // ==========================================
+  Future<void> saveFcmToken(String token) async {
+    // هذه الدالة تم حذفها سابقاً، يمكن إزالتها أو تركها فارغة، لأننا نعتمد على registerDevice
+  }
+
   Future<void> syncAllToCloud() async {
     final groups = await _localStorage.getAllGroups();
     final contacts = await _localStorage.getAllContacts();
@@ -227,8 +235,6 @@ class CrmRepository {
 
     final groupsJson = groups.map((g) => {'id': g.id, 'name': g.name}).toList();
     final contactsJson = contacts.map((c) => {'id': c.id, 'name': c.name, 'phone': c.phone, 'group_id': c.groupId}).toList();
-    
-    // 🌟 تمت إضافة target_device_id للرفع
     final schedulesJson = schedules.map((s) => {
       'id': s.id,
       'group_id': s.groupId,
@@ -236,10 +242,9 @@ class CrmRepository {
       'send_day': s.sendDay,
       'send_hour': s.sendHour,
       'send_minute': s.sendMinute,
-      'target_device_id': s.targetDeviceId, // 🌟
-      'is_active': s.isActive,
+      'target_device_id': s.targetDeviceId, 
+      'is_active': s.isActive, // 🌟 لا نرفع last_sent_date للحماية كما اتفقنا
     }).toList();
-
     final messagesJson = messages.map((m) => {'id': m.id, 'phone': m.phone, 'body': m.body, 'type': m.type, 'message_date': m.messageDate.toIso8601String()}).toList();
 
     await _cloudStorage.syncGroups(groupsJson);
@@ -259,32 +264,28 @@ class CrmRepository {
     final cloudMessages = await _cloudStorage.fetchMessages();
 
     for (var row in cloudGroups) {
-      try { await _localStorage.upsertGroup(GroupsCompanion(id: drift.Value(row['id']), name: drift.Value(row['name']))); } catch (_) {} 
+      try { await _localStorage.upsertGroup(GroupsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']))); } catch (_) {} 
     }
-
     for (var row in cloudContacts) {
-      try { await _localStorage.upsertContact(ContactsCompanion(id: drift.Value(row['id']), name: drift.Value(row['name']), phone: drift.Value(row['phone']), groupId: drift.Value(row['group_id']))); } catch (_) {}
+      try { await _localStorage.upsertContact(ContactsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']), phone: drift.Value(row['phone']), groupId: drift.Value(row['group_id']?.toString()))); } catch (_) {}
     }
-
-    // 🌟 تمت إضافة target_device_id للتنزيل
     for (var row in cloudSchedules) {
       try {
         await _localStorage.upsertSchedule(SchedulesCompanion(
-          id: drift.Value(row['id']),
-          groupId: drift.Value(row['group_id']),
+          id: drift.Value(row['id'].toString()),
+          groupId: drift.Value(row['group_id'].toString()),
           message: drift.Value(row['message']),
           sendHour: drift.Value(row['send_hour'] ?? 9),
           sendMinute: drift.Value(row['send_minute'] ?? 0),
           sendDay: drift.Value(row['send_day']),
-          targetDeviceId: drift.Value(row['target_device_id']), // 🌟
+          targetDeviceId: drift.Value(row['target_device_id']?.toString()), 
           lastSentDate: drift.Value(row['last_sent_date'] != null ? DateTime.parse(row['last_sent_date']) : null),
           isActive: drift.Value(row['is_active']),
         ));
       } catch (_) {}
     }
-
     for (var row in cloudMessages) {
-      try { await _localStorage.upsertMessage(MessagesCompanion(id: drift.Value(row['id']), phone: drift.Value(row['phone']), body: drift.Value(row['body']), type: drift.Value(row['type']), messageDate: drift.Value(DateTime.parse(row['message_date'])))); } catch (_) {}
+      try { await _localStorage.upsertMessage(MessagesCompanion(id: drift.Value(row['id'].toString()), phone: drift.Value(row['phone']), body: drift.Value(row['body']), type: drift.Value(row['type']), messageDate: drift.Value(DateTime.parse(row['message_date'])))); } catch (_) {}
     }
   }
 
@@ -298,8 +299,8 @@ class CrmRepository {
     if (localTimeString != null) localTime = DateTime.parse(localTimeString);
 
     if (localTime == null || cloudTime.isAfter(localTime)) {
-      await _localStorage.clearAllData();
-      await downloadAllFromCloud();
+      // ✅ نكتفي بالتنزيل، ودوال הـ Upsert في Drift ستتكفل بدمج البيانات دون حذف رسائلنا الجديدة
+      await downloadAllFromCloud(); 
       await prefs.setString('local_sync_time', cloudTime.toIso8601String());
       return true; 
     }

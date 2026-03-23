@@ -16,6 +16,7 @@ dependencies:
   cloud_storage_api:
     path: ../cloud_storage_api
   shared_preferences: ^2.5.4
+  uuid: ^4.5.3
 
 
 dev_dependencies:

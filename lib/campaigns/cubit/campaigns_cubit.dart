@@ -44,7 +44,7 @@ class CampaignsCubit extends Cubit<CampaignsState> {
   }
 
   Future<void> createSchedule({
-    required int groupId, 
+    required String groupId, 
     required String message, 
     required int sendDay, 
     required int sendHour, 
