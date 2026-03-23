@@ -22,3 +22,6 @@ class CampaignsError extends CampaignsState {
   final String message;
   CampaignsError({required this.message});
 }
+
+
+// we fucked up
