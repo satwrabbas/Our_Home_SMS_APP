@@ -156,27 +156,30 @@ class DashboardCubit extends Cubit<DashboardState> {
   // 4. المزامنة الذكية
   // ==========================================
   Future<void> syncDataToCloud() async {
-    if (state is DashboardLoaded) {
-      final currentState = state as DashboardLoaded;
-      emit(currentState.copyWith(engineStatusMessage: '🔄 جاري المزامنة الذكية...', clearMessage: true));
+  if (state is DashboardLoaded) {
+    final currentState = state as DashboardLoaded;
+    emit(currentState.copyWith(engineStatusMessage: '🔄 جاري المزامنة الذكية...', clearMessage: true));
 
-      try {
-        final wasDownloaded = await _repository.downloadIfCloudIsNewer();
-        if (!wasDownloaded) {
-          await _repository.syncAllToCloud();
-        }
-        await loadDashboard(); 
-        
-        if (state is DashboardLoaded) {
-          emit((state as DashboardLoaded).copyWith(engineStatusMessage: 
-            wasDownloaded ? '✅ تم استيراد التحديثات من السحابة!' : '✅ تم رفع بياناتك للسحابة بنجاح!'
-          ));
-        }
-      } catch (e) {
-        if (state is DashboardLoaded) {
-          emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشلت المزامنة: $e'));
-        }
+    try {
+      // 1. جلب البيانات الجديدة من السحابة إن وجدت
+      final wasDownloaded = await _repository.downloadIfCloudIsNewer();
+      
+      // 2. رفع التغييرات المحلية (مثل الرسائل المرسلة حديثاً) دائماً!
+      await _repository.syncAllToCloud(); 
+      
+      // 3. إعادة تحميل الواجهة
+      await loadDashboard(); 
+      
+      if (state is DashboardLoaded) {
+        emit((state as DashboardLoaded).copyWith(engineStatusMessage: 
+          wasDownloaded ? '✅ تمت مزامنة السحابة والبيانات المحلية بنجاح!' : '✅ تم رفع بياناتك للسحابة بنجاح!'
+        ));
+      }
+    } catch (e) {
+      if (state is DashboardLoaded) {
+        emit((state as DashboardLoaded).copyWith(engineStatusMessage: '❌ فشلت المزامنة: $e'));
       }
     }
+  }
   }
 }
