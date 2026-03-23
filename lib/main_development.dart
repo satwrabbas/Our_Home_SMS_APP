@@ -31,6 +31,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRycW93aWFwYWFmeHhzdm5tbnd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTY1MjEsImV4cCI6MjA4ODU3MjUyMX0.tni1GYt5QEyouSKGUhTpsLAS2Mmy1M2_c9ty72WslSY',
   );
 
+  // 🌟 جديد: إجبار الشبح على انتظار استعادة جلسة المستخدم (بحد أقصى 5 ثوانٍ)
+  int waitCount = 0;
+  while (Supabase.instance.client.auth.currentUser == null && waitCount < 10) {
+    await Future.delayed(const Duration(milliseconds: 500));
+    waitCount++;
+  }
+
   print("👻 إشارة صامتة وصلت من السحابة!");
 
   try {
