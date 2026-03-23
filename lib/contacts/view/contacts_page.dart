@@ -28,7 +28,9 @@ class ContactsView extends StatefulWidget {
 class _ContactsViewState extends State<ContactsView> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  
+  void _showSnackBar(BuildContext context, String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+  }
   // 🌟 تم التعديل إلى String? بدلاً من int?
   String? _selectedFilterGroupId; 
   final Set<Contact> _selectedContacts = {}; 
@@ -137,6 +139,7 @@ class _ContactsViewState extends State<ContactsView> {
     );
   }
 
+  // 3. القائمة السفلية (BottomSheet) للإجراءات السريعة
   void _showContactOptions(BuildContext context, Contact contact, List<Group> groups) {
     showModalBottomSheet(
       context: context,
@@ -150,21 +153,47 @@ class _ContactsViewState extends State<ContactsView> {
             Text(contact.phone, style: const TextStyle(color: Colors.grey, fontSize: 16)),
             const SizedBox(height: 16),
             
+            // 🌟 أزرار الاتصال السريع المحسنة
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children:[
                 _buildActionButton(Icons.call, 'اتصال', Colors.blue, () async {
                   final url = Uri.parse('tel:${contact.phone}');
-                  if (await canLaunchUrl(url)) await launchUrl(url);
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  } else {
+                    if (context.mounted) _showSnackBar(context, 'لا يمكن فتح تطبيق الاتصال', Colors.red);
+                  }
                 }),
                 _buildActionButton(Icons.chat, 'واتساب', Colors.green, () async {
-                  final cleanPhone = contact.phone.replaceAll(RegExp(r'\D'), '');
+                  // 1. تنظيف الرقم (إبقاء الأرقام وعلامة + فقط إن وجدت)
+                  String cleanPhone = contact.phone.replaceAll(RegExp(r'[^\d+]'), '');
+                  
+                  // 2. محاولة تنسيق الرقم ليتوافق مع متطلبات واتساب (رمز الدولة ضروري)
+                  // ملاحظة: يُفضل أن يقوم المستخدم بحفظ الأرقام بالصيغة الدولية (مثل +963 أو +966)
+                  // إذا كان الرقم يبدأ بصفر محلي، نقوم بإزالته (مثال لبعض الدول، قد تحتاج لتخصيصه حسب بلدك)
+                  if (cleanPhone.startsWith('00')) {
+                    cleanPhone = cleanPhone.replaceFirst('00', '');
+                  } else if (cleanPhone.startsWith('+')) {
+                    cleanPhone = cleanPhone.replaceFirst('+', '');
+                  }
+                  
+                  // رابط الواتساب العالمي
                   final url = Uri.parse('https://wa.me/$cleanPhone');
-                  if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+                  
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (context.mounted) _showSnackBar(context, 'تطبيق الواتساب غير مثبت أو الرقم غير صالح', Colors.red);
+                  }
                 }),
                 _buildActionButton(Icons.message, 'رسالة SMS', Colors.orange, () async {
                   final url = Uri.parse('sms:${contact.phone}');
-                  if (await canLaunchUrl(url)) await launchUrl(url);
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  } else {
+                    if (context.mounted) _showSnackBar(context, 'لا يمكن فتح تطبيق الرسائل', Colors.red);
+                  }
                 }),
               ],
             ),
