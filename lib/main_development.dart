@@ -1,5 +1,5 @@
 import 'dart:ui'; // 🌟 1. استدعاء مكتبة الـ UI الضرورية لعمل الخلفية
-
+import 'package:uuid/uuid.dart'; // 🌟 مكتبة توليد المعرفات
 import 'package:cloud_storage_api/cloud_storage_api.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:firebase_core/firebase_core.dart';
@@ -13,7 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:telephony/telephony.dart';
 
 // ==========================================
-// 👻 دالة الاستيقاظ الصامت (نسخة الدبابة 🛡️ - لا تستسلم أبداً)
+// 👻 دالة الاستيقاظ الصامت (النسخة المدرعة 🛡️)
 // ==========================================
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -21,11 +21,14 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
+  // 🌟 1. إيقاف تحذيرات Drift لكي لا ترتبك قاعدة البيانات عند فتح التطبيق
+  drift.driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+
   print("👻 إشارة صامتة وصلت من السحابة!");
 
   try {
     final data = message.data;
-    final String? groupId = data['group_id']?.toString(); // 🌟 نقرأه كنص ولا نحوله لرقم
+    final String? groupId = data['group_id']?.toString(); 
     final String? smsBody = data['message']?.toString();
 
     if (groupId == null || smsBody == null) return;
@@ -34,62 +37,60 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final telephony = Telephony.instance;
 
     final allContacts = await database.getAllContacts();
-    // 🌟 نقارن النص بالنص
     final targetContacts = allContacts.where((c) => c.groupId == groupId).toList();
-// ... (باقي كود الإرسال كما هو)
+
     if (targetContacts.isEmpty) return;
 
-    print("🚀 جاري إرسال $smsBody إلى ${targetContacts.length} عميل...");
+    print("🚀 جاري إرسال[$smsBody] إلى ${targetContacts.length} عميل...");
+
+    const uuid = Uuid(); // مولد الـ IDs
 
     for (var contact in targetContacts) {
       
-      // 🌟 خوارزمية المحاولة المستميتة (Retry Logic)
       bool isSent = false;
       int retryCount = 0;
-      const int maxRetries = 3; // سنحاول 3 مرات كحد أقصى
 
-      while (!isSent && retryCount < maxRetries) {
+      // 🌟 2. حلقة الإرسال (مفصولة ومستقلة تماماً عن قاعدة البيانات)
+      while (!isSent && retryCount < 3) {
         try {
-          // 1. محاولة الإرسال
+          print("➤ محاولة إرسال SMS للرقم ${contact.phone}...");
+          // نرسل الرسالة بدون await (أطلق وانسَ) لكي لا يتجمد الكود
           telephony.sendSms(to: contact.phone, message: smsBody);
-          isSent = true; // نجحنا! نكسر الحلقة
-          
-          // 2. الحفظ في قاعدة البيانات كـ (ناجح)
-          await database.insertMessage(MessagesCompanion(
-            phone: drift.Value(contact.phone),
-            body: drift.Value(smsBody),
-            type: const drift.Value('sent_auto_fcm'),
-            messageDate: drift.Value(DateTime.now()),
-          ));
-          print("✅ تم إرسال وحفظ رسالة الرقم: ${contact.phone}");
-          
+          isSent = true; // إذا لم ينهار الكود هنا، فهذا يعني أن الأندرويد استلم الأمر!
         } catch (e) {
           retryCount++;
-          print("⚠️ فشل الإرسال للرقم ${contact.phone}. المحاولة $retryCount من $maxRetries...");
-          
-          if (retryCount >= maxRetries) {
-            // 3. استسلمنا بعد 3 محاولات، نحفظها في القاعدة كـ (فاشلة) ليعرف المستخدم
-            await database.insertMessage(MessagesCompanion(
-              phone: drift.Value(contact.phone),
-              body: drift.Value("❌ فشل الإرسال: $smsBody"),
-              type: const drift.Value('failed_auto_fcm'),
-              messageDate: drift.Value(DateTime.now()),
-            ));
-            print("❌ استسلام. لم يتم الإرسال بسبب غياب شبكة الشريحة.");
-          } else {
-            // ⏱️ إذا فشلنا، ننتظر 30 ثانية قبل المحاولة التالية (لعل شبكة الهاتف تعود)
-            await Future.delayed(const Duration(seconds: 30));
+          print("⚠️ فشل الإرسال (المحاولة $retryCount من 3): $e");
+          if (retryCount < 3) {
+            // ننتظر 5 ثواني فقط لكي لا يقتلنا الأندرويد
+            await Future.delayed(const Duration(seconds: 5)); 
           }
         }
       }
 
-      await Future.delayed(const Duration(seconds: 1)); // حماية الشريحة بين كل عميل وآخر
+      // 🌟 3. محاولة الحفظ في قاعدة البيانات (في كتلة Try/Catch منفصلة لحماية الشبح)
+      try {
+        await database.insertMessage(MessagesCompanion(
+          id: drift.Value(uuid.v4()),
+          phone: drift.Value(contact.phone),
+          // نكتب حالة الرسالة بناءً على نجاح حلقة الإرسال السابقة
+          body: drift.Value(isSent ? smsBody : "❌ فشل الإرسال: $smsBody"),
+          type: drift.Value(isSent ? 'sent_auto_fcm' : 'failed_auto_fcm'),
+          messageDate: drift.Value(DateTime.now()),
+        ));
+        print("✅ تم كتابة السجل في قاعدة البيانات للرقم: ${contact.phone}");
+      } catch (dbError) {
+        // إذا فشل الحفظ بسبب (Database Lock) والتطبيق مفتوح، لن ينهار الشبح!
+        print("⚠️ تم الإرسال ولكن تعذر الحفظ محلياً: $dbError");
+      }
+
+      // حماية الشريحة بين كل عميل وآخر
+      await Future.delayed(const Duration(seconds: 1)); 
     }
 
     print("✅✅ تمت مهمة الشبح بالكامل بنجاح! العودة للنوم 💤");
 
   } catch (e) {
-    print("❌ حدث خطأ في مهمة الخلفية: $e");
+    print("❌ حدث خطأ جذري في مهمة الخلفية: $e");
   }
 }
 
