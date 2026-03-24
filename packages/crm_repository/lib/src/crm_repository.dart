@@ -21,6 +21,8 @@ class CrmRepository {
   // ==========================================
   Stream<AuthState> get authStateChanges => _cloudStorage.authStateChanges;
   Session? get currentSession => _cloudStorage.currentSession;
+  // 🌟 (إضافة صغيرة لدعم أداة فحص قاعدة البيانات التي ناقشناها سابقاً)
+  AppDatabase get localDatabase => _localStorage; 
 
   Future<void> signIn({required String email, required String password}) async {
     await _cloudStorage.signIn(email: email, password: password);
@@ -60,15 +62,23 @@ class CrmRepository {
     final prefs = await SharedPreferences.getInstance();
     
     try {
+      // 1. نحاول جلب الأجهزة من السحابة (لو فيه إنترنت)
       final devices = await _cloudStorage.fetchDevices();
+      
+      // 2. نحفظها كـ JSON في ذاكرة الهاتف لكي نستخدمها لاحقاً لو انقطع الإنترنت!
       await prefs.setString('cached_devices', jsonEncode(devices));
+      
       return devices;
     } catch (e) {
+      // 3. ✈️ حالة انقطاع الإنترنت: نقرأ الذاكرة المحفوظة!
       final cachedString = prefs.getString('cached_devices');
       if (cachedString != null) {
         final List<dynamic> decoded = jsonDecode(cachedString);
+        // تحويلها لـ List<Map> ليفهمها التطبيق
         return decoded.map((e) => e as Map<String, dynamic>).toList();
       }
+      
+      // 4. إذا لم يكن هناك إنترنت، ولم نفتح التطبيق سابقاً أبداً (حالة نادرة جداً)
       return[];
     }
   }
@@ -107,7 +117,7 @@ class CrmRepository {
       // (استخدام firstWhere مع orElse لتعمل بأمان على كل نسخ Dart)
       final existingContact = existingContacts.firstWhere(
         (c) => c.phone.replaceAll(RegExp(r'\s+|-'), '') == phone,
-        orElse: () => const Contact(id: '', name: '', phone: '', groupId: null),
+        orElse: () => const Contact(id: '', name: '', phone: '', groupId: null, isDeleted: false), // 🌟 أضفنا isDeleted هنا
       );
 
       if (existingContact.id.isNotEmpty) {
@@ -117,6 +127,7 @@ class CrmRepository {
           name: drift.Value(name),
           phone: drift.Value(phone),
           groupId: drift.Value(existingContact.groupId),
+          isDeleted: const drift.Value(false), // 🌟 إحياء العميل إذا كان محذوفاً (Soft Delete Restore)
         );
         await _localStorage.upsertContact(companion);
       } else {
@@ -132,8 +143,9 @@ class CrmRepository {
   }
 
   Future<void> deleteContact(Contact contact) async {
-    await _localStorage.deleteContact(contact);
-    await _cloudStorage.deleteContact(contact.id);
+    // 🌟 تعديل: أصبح يعتمد على الحذف الناعم في الهاتف وفي السحابة
+    await _localStorage.deleteContact(contact); // تحديث isDeleted = true محلياً
+    try { await _cloudStorage.softDeleteContact(contact.id); } catch (_) {} // تحديث مباشر في السحابة
   }
 
   Future<void> updateContactGroup(Contact contact, String? groupId) async { // 🌟 String?
@@ -155,9 +167,10 @@ class CrmRepository {
   }
 
   Future<void> deleteGroup(Group group) async {
+    // 🌟 تعديل: أصبح يعتمد على الحذف الناعم
     await _localStorage.clearGroupFromContacts(group.id);
-    await _localStorage.deleteGroup(group);
-    await _cloudStorage.deleteGroup(group.id);
+    await _localStorage.deleteGroup(group); // تحديث isDeleted = true محلياً
+    try { await _cloudStorage.softDeleteGroup(group.id); } catch (_) {}
   }
 
   Future<void> updateGroup(Group group) async {
@@ -168,6 +181,7 @@ class CrmRepository {
     return await _localStorage.getAllSchedules();
   }
 
+  /// 🌟 تمت إضافة targetDeviceId لدالة إنشاء الحملة
   Future<void> addSchedule({
     required String groupId, // 🌟 String
     required String message, 
@@ -189,8 +203,9 @@ class CrmRepository {
   }
 
   Future<void> deleteSchedule(Schedule schedule) async {
-    await _localStorage.deleteSchedule(schedule);
-    await _cloudStorage.deleteSchedule(schedule.id);
+    // 🌟 تعديل: أصبح يعتمد على الحذف الناعم
+    await _localStorage.deleteSchedule(schedule); // تحديث isDeleted = true محلياً
+    try { await _cloudStorage.softDeleteSchedule(schedule.id); } catch (_) {}
   }
 
   Future<void> updateSchedule(Schedule schedule) async {
@@ -205,6 +220,7 @@ class CrmRepository {
   }
 
   Future<void> addMessageLog({required String phone, required String body, required String type}) async {
+    // 1. الحفظ في قاعدة البيانات المحلية (Drift)
     await _localStorage.upsertMessage(MessagesCompanion(
       id: drift.Value(_uuid.v4()), // 🌟 توليد ID فريد
       phone: drift.Value(phone), 
@@ -213,9 +229,13 @@ class CrmRepository {
       messageDate: drift.Value(DateTime.now()), 
     ));
 
+    // 2. 🚀 الرفع التلقائي للسحابة فوراً (لكي لا تضيع الرسالة)
     try {
+      // نستدعي دالة المزامنة الشاملة لرفع هذا السجل الجديد
       await syncAllToCloud(); 
     } catch (e) {
+      // في حال عدم وجود إنترنت وقت إرسال الـ SMS، ستبقى محفوظة محلياً
+      // وسيتم رفعها لاحقاً عند فتح التطبيق
       print('تم حفظ الرسالة محلياً، سيتم رفعها لاحقاً لعدم توفر اتصال: $e');
     }
   }
@@ -228,13 +248,17 @@ class CrmRepository {
   }
 
   Future<void> syncAllToCloud() async {
-    final groups = await _localStorage.getAllGroups();
-    final contacts = await _localStorage.getAllContacts();
-    final schedules = await _localStorage.getAllSchedules();
-    final messages = await _localStorage.getAllMessages(); 
+    // 🌟 السحر: لكي نفهم الحذف الناعم، نطلب من قاعدة البيانات جلب (كل شيء) بما فيه المحذوف!
+    // لو استخدمنا getAllContacts العادية، كانت ستخفي العملاء المحذوفين ولن يتم رفعهم للسحابة
+    final groups = await _localStorage.select(_localStorage.groups).get();
+    final contacts = await _localStorage.select(_localStorage.contacts).get();
+    final schedules = await _localStorage.select(_localStorage.schedules).get();
+    final messages = await _localStorage.select(_localStorage.messages).get(); 
 
-    final groupsJson = groups.map((g) => {'id': g.id, 'name': g.name}).toList();
-    final contactsJson = contacts.map((c) => {'id': c.id, 'name': c.name, 'phone': c.phone, 'group_id': c.groupId}).toList();
+    // 🌟 أضفنا حقل is_deleted لكي تعرف السحابة أننا قمنا בחذف شيء ما محلياً
+    final groupsJson = groups.map((g) => {'id': g.id, 'name': g.name, 'is_deleted': g.isDeleted}).toList();
+    final contactsJson = contacts.map((c) => {'id': c.id, 'name': c.name, 'phone': c.phone, 'group_id': c.groupId, 'is_deleted': c.isDeleted}).toList();
+    
     final schedulesJson = schedules.map((s) => {
       'id': s.id,
       'group_id': s.groupId,
@@ -243,8 +267,10 @@ class CrmRepository {
       'send_hour': s.sendHour,
       'send_minute': s.sendMinute,
       'target_device_id': s.targetDeviceId, 
-      'is_active': s.isActive, // 🌟 لا نرفع last_sent_date للحماية كما اتفقنا
+      'is_active': s.isActive, 
+      'is_deleted': s.isDeleted // 🌟
     }).toList();
+
     final messagesJson = messages.map((m) => {'id': m.id, 'phone': m.phone, 'body': m.body, 'type': m.type, 'message_date': m.messageDate.toIso8601String()}).toList();
 
     await _cloudStorage.syncGroups(groupsJson);
@@ -263,12 +289,15 @@ class CrmRepository {
     final cloudSchedules = await _cloudStorage.fetchSchedules();
     final cloudMessages = await _cloudStorage.fetchMessages();
 
+    // 🌟 نقرأ حقل is_deleted القادم من السحابة ونحفظه محلياً ليختفي العنصر من الواجهة
     for (var row in cloudGroups) {
-      try { await _localStorage.upsertGroup(GroupsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']))); } catch (_) {} 
+      try { await _localStorage.upsertGroup(GroupsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']), isDeleted: drift.Value(row['is_deleted'] ?? false))); } catch (_) {} 
     }
+
     for (var row in cloudContacts) {
-      try { await _localStorage.upsertContact(ContactsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']), phone: drift.Value(row['phone']), groupId: drift.Value(row['group_id']?.toString()))); } catch (_) {}
+      try { await _localStorage.upsertContact(ContactsCompanion(id: drift.Value(row['id'].toString()), name: drift.Value(row['name']), phone: drift.Value(row['phone']), groupId: drift.Value(row['group_id']?.toString()), isDeleted: drift.Value(row['is_deleted'] ?? false))); } catch (_) {}
     }
+
     for (var row in cloudSchedules) {
       try {
         await _localStorage.upsertSchedule(SchedulesCompanion(
@@ -281,9 +310,11 @@ class CrmRepository {
           targetDeviceId: drift.Value(row['target_device_id']?.toString()), 
           lastSentDate: drift.Value(row['last_sent_date'] != null ? DateTime.parse(row['last_sent_date']) : null),
           isActive: drift.Value(row['is_active']),
+          isDeleted: drift.Value(row['is_deleted'] ?? false), // 🌟
         ));
       } catch (_) {}
     }
+
     for (var row in cloudMessages) {
       try { await _localStorage.upsertMessage(MessagesCompanion(id: drift.Value(row['id'].toString()), phone: drift.Value(row['phone']), body: drift.Value(row['body']), type: drift.Value(row['type']), messageDate: drift.Value(DateTime.parse(row['message_date'])))); } catch (_) {}
     }

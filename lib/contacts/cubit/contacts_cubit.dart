@@ -32,7 +32,7 @@ class ContactsCubit extends Cubit<ContactsState> {
         final allContacts = await _repository.getContacts();
         final newContact = allContacts.firstWhere(
           (c) => c.phone.replaceAll(RegExp(r'\s+|-'), '') == phone.replaceAll(RegExp(r'\s+|-'), ''),
-          orElse: () => const Contact(id: '', name: '', phone: '', groupId: null),
+          orElse: () => const Contact(id: '', name: '', phone: '', groupId: null, isDeleted: false),
         );
         if (newContact.id.isNotEmpty) {
           await _repository.updateContactGroup(newContact, groupId);

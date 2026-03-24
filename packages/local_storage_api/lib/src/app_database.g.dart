@@ -26,8 +26,23 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name];
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, isDeleted];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -53,6 +68,12 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
     return context;
   }
 
@@ -70,6 +91,10 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
     );
   }
 
@@ -82,17 +107,23 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
 class Group extends DataClass implements Insertable<Group> {
   final String id;
   final String name;
-  const Group({required this.id, required this.name});
+  final bool isDeleted;
+  const Group({required this.id, required this.name, required this.isDeleted});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
+    map['is_deleted'] = Variable<bool>(isDeleted);
     return map;
   }
 
   GroupsCompanion toCompanion(bool nullToAbsent) {
-    return GroupsCompanion(id: Value(id), name: Value(name));
+    return GroupsCompanion(
+      id: Value(id),
+      name: Value(name),
+      isDeleted: Value(isDeleted),
+    );
   }
 
   factory Group.fromJson(
@@ -103,6 +134,7 @@ class Group extends DataClass implements Insertable<Group> {
     return Group(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
     );
   }
   @override
@@ -111,15 +143,20 @@ class Group extends DataClass implements Insertable<Group> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
     };
   }
 
-  Group copyWith({String? id, String? name}) =>
-      Group(id: id ?? this.id, name: name ?? this.name);
+  Group copyWith({String? id, String? name, bool? isDeleted}) => Group(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    isDeleted: isDeleted ?? this.isDeleted,
+  );
   Group copyWithCompanion(GroupsCompanion data) {
     return Group(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
     );
   }
 
@@ -127,42 +164,51 @@ class Group extends DataClass implements Insertable<Group> {
   String toString() {
     return (StringBuffer('Group(')
           ..write('id: $id, ')
-          ..write('name: $name')
+          ..write('name: $name, ')
+          ..write('isDeleted: $isDeleted')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name);
+  int get hashCode => Object.hash(id, name, isDeleted);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Group && other.id == this.id && other.name == this.name);
+      (other is Group &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.isDeleted == this.isDeleted);
 }
 
 class GroupsCompanion extends UpdateCompanion<Group> {
   final Value<String> id;
   final Value<String> name;
+  final Value<bool> isDeleted;
   final Value<int> rowid;
   const GroupsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   GroupsCompanion.insert({
     required String id,
     required String name,
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
   static Insertable<Group> custom({
     Expression<String>? id,
     Expression<String>? name,
+    Expression<bool>? isDeleted,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (isDeleted != null) 'is_deleted': isDeleted,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -170,11 +216,13 @@ class GroupsCompanion extends UpdateCompanion<Group> {
   GroupsCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
+    Value<bool>? isDeleted,
     Value<int>? rowid,
   }) {
     return GroupsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      isDeleted: isDeleted ?? this.isDeleted,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -188,6 +236,9 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -199,6 +250,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     return (StringBuffer('GroupsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('isDeleted: $isDeleted, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -256,8 +308,23 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
       'REFERENCES "groups" (id)',
     ),
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name, phone, groupId];
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, phone, groupId, isDeleted];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -297,6 +364,12 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
     return context;
   }
 
@@ -322,6 +395,10 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.string,
         data['${effectivePrefix}group_id'],
       ),
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
     );
   }
 
@@ -336,11 +413,13 @@ class Contact extends DataClass implements Insertable<Contact> {
   final String name;
   final String phone;
   final String? groupId;
+  final bool isDeleted;
   const Contact({
     required this.id,
     required this.name,
     required this.phone,
     this.groupId,
+    required this.isDeleted,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -351,6 +430,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     if (!nullToAbsent || groupId != null) {
       map['group_id'] = Variable<String>(groupId);
     }
+    map['is_deleted'] = Variable<bool>(isDeleted);
     return map;
   }
 
@@ -362,6 +442,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       groupId: groupId == null && nullToAbsent
           ? const Value.absent()
           : Value(groupId),
+      isDeleted: Value(isDeleted),
     );
   }
 
@@ -375,6 +456,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       name: serializer.fromJson<String>(json['name']),
       phone: serializer.fromJson<String>(json['phone']),
       groupId: serializer.fromJson<String?>(json['groupId']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
     );
   }
   @override
@@ -385,6 +467,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       'name': serializer.toJson<String>(name),
       'phone': serializer.toJson<String>(phone),
       'groupId': serializer.toJson<String?>(groupId),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
     };
   }
 
@@ -393,11 +476,13 @@ class Contact extends DataClass implements Insertable<Contact> {
     String? name,
     String? phone,
     Value<String?> groupId = const Value.absent(),
+    bool? isDeleted,
   }) => Contact(
     id: id ?? this.id,
     name: name ?? this.name,
     phone: phone ?? this.phone,
     groupId: groupId.present ? groupId.value : this.groupId,
+    isDeleted: isDeleted ?? this.isDeleted,
   );
   Contact copyWithCompanion(ContactsCompanion data) {
     return Contact(
@@ -405,6 +490,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       name: data.name.present ? data.name.value : this.name,
       phone: data.phone.present ? data.phone.value : this.phone,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
     );
   }
 
@@ -414,13 +500,14 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('phone: $phone, ')
-          ..write('groupId: $groupId')
+          ..write('groupId: $groupId, ')
+          ..write('isDeleted: $isDeleted')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, phone, groupId);
+  int get hashCode => Object.hash(id, name, phone, groupId, isDeleted);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -428,7 +515,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.id == this.id &&
           other.name == this.name &&
           other.phone == this.phone &&
-          other.groupId == this.groupId);
+          other.groupId == this.groupId &&
+          other.isDeleted == this.isDeleted);
 }
 
 class ContactsCompanion extends UpdateCompanion<Contact> {
@@ -436,12 +524,14 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<String> name;
   final Value<String> phone;
   final Value<String?> groupId;
+  final Value<bool> isDeleted;
   final Value<int> rowid;
   const ContactsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.phone = const Value.absent(),
     this.groupId = const Value.absent(),
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactsCompanion.insert({
@@ -449,6 +539,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     required String name,
     required String phone,
     this.groupId = const Value.absent(),
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -458,6 +549,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<String>? name,
     Expression<String>? phone,
     Expression<String>? groupId,
+    Expression<bool>? isDeleted,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -465,6 +557,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (name != null) 'name': name,
       if (phone != null) 'phone': phone,
       if (groupId != null) 'group_id': groupId,
+      if (isDeleted != null) 'is_deleted': isDeleted,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -474,6 +567,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<String>? name,
     Value<String>? phone,
     Value<String?>? groupId,
+    Value<bool>? isDeleted,
     Value<int>? rowid,
   }) {
     return ContactsCompanion(
@@ -481,6 +575,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       name: name ?? this.name,
       phone: phone ?? this.phone,
       groupId: groupId ?? this.groupId,
+      isDeleted: isDeleted ?? this.isDeleted,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -500,6 +595,9 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (groupId.present) {
       map['group_id'] = Variable<String>(groupId.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -513,6 +611,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('name: $name, ')
           ..write('phone: $phone, ')
           ..write('groupId: $groupId, ')
+          ..write('isDeleted: $isDeleted, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -631,6 +730,21 @@ class $SchedulesTable extends Schedules
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -642,6 +756,7 @@ class $SchedulesTable extends Schedules
     targetDeviceId,
     lastSentDate,
     isActive,
+    isDeleted,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -720,6 +835,12 @@ class $SchedulesTable extends Schedules
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
     return context;
   }
 
@@ -765,6 +886,10 @@ class $SchedulesTable extends Schedules
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
       )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
     );
   }
 
@@ -784,6 +909,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
   final String? targetDeviceId;
   final DateTime? lastSentDate;
   final bool isActive;
+  final bool isDeleted;
   const Schedule({
     required this.id,
     required this.groupId,
@@ -794,6 +920,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     this.targetDeviceId,
     this.lastSentDate,
     required this.isActive,
+    required this.isDeleted,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -811,6 +938,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       map['last_sent_date'] = Variable<DateTime>(lastSentDate);
     }
     map['is_active'] = Variable<bool>(isActive);
+    map['is_deleted'] = Variable<bool>(isDeleted);
     return map;
   }
 
@@ -829,6 +957,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           ? const Value.absent()
           : Value(lastSentDate),
       isActive: Value(isActive),
+      isDeleted: Value(isDeleted),
     );
   }
 
@@ -847,6 +976,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       targetDeviceId: serializer.fromJson<String?>(json['targetDeviceId']),
       lastSentDate: serializer.fromJson<DateTime?>(json['lastSentDate']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
     );
   }
   @override
@@ -862,6 +992,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
       'targetDeviceId': serializer.toJson<String?>(targetDeviceId),
       'lastSentDate': serializer.toJson<DateTime?>(lastSentDate),
       'isActive': serializer.toJson<bool>(isActive),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
     };
   }
 
@@ -875,6 +1006,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     Value<String?> targetDeviceId = const Value.absent(),
     Value<DateTime?> lastSentDate = const Value.absent(),
     bool? isActive,
+    bool? isDeleted,
   }) => Schedule(
     id: id ?? this.id,
     groupId: groupId ?? this.groupId,
@@ -887,6 +1019,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
         : this.targetDeviceId,
     lastSentDate: lastSentDate.present ? lastSentDate.value : this.lastSentDate,
     isActive: isActive ?? this.isActive,
+    isDeleted: isDeleted ?? this.isDeleted,
   );
   Schedule copyWithCompanion(SchedulesCompanion data) {
     return Schedule(
@@ -905,6 +1038,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           ? data.lastSentDate.value
           : this.lastSentDate,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
     );
   }
 
@@ -919,7 +1053,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           ..write('sendMinute: $sendMinute, ')
           ..write('targetDeviceId: $targetDeviceId, ')
           ..write('lastSentDate: $lastSentDate, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted')
           ..write(')'))
         .toString();
   }
@@ -935,6 +1070,7 @@ class Schedule extends DataClass implements Insertable<Schedule> {
     targetDeviceId,
     lastSentDate,
     isActive,
+    isDeleted,
   );
   @override
   bool operator ==(Object other) =>
@@ -948,7 +1084,8 @@ class Schedule extends DataClass implements Insertable<Schedule> {
           other.sendMinute == this.sendMinute &&
           other.targetDeviceId == this.targetDeviceId &&
           other.lastSentDate == this.lastSentDate &&
-          other.isActive == this.isActive);
+          other.isActive == this.isActive &&
+          other.isDeleted == this.isDeleted);
 }
 
 class SchedulesCompanion extends UpdateCompanion<Schedule> {
@@ -961,6 +1098,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
   final Value<String?> targetDeviceId;
   final Value<DateTime?> lastSentDate;
   final Value<bool> isActive;
+  final Value<bool> isDeleted;
   final Value<int> rowid;
   const SchedulesCompanion({
     this.id = const Value.absent(),
@@ -972,6 +1110,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     this.targetDeviceId = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SchedulesCompanion.insert({
@@ -984,6 +1123,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     this.targetDeviceId = const Value.absent(),
     this.lastSentDate = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        groupId = Value(groupId),
@@ -999,6 +1139,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Expression<String>? targetDeviceId,
     Expression<DateTime>? lastSentDate,
     Expression<bool>? isActive,
+    Expression<bool>? isDeleted,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1011,6 +1152,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       if (targetDeviceId != null) 'target_device_id': targetDeviceId,
       if (lastSentDate != null) 'last_sent_date': lastSentDate,
       if (isActive != null) 'is_active': isActive,
+      if (isDeleted != null) 'is_deleted': isDeleted,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1025,6 +1167,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     Value<String?>? targetDeviceId,
     Value<DateTime?>? lastSentDate,
     Value<bool>? isActive,
+    Value<bool>? isDeleted,
     Value<int>? rowid,
   }) {
     return SchedulesCompanion(
@@ -1037,6 +1180,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
       targetDeviceId: targetDeviceId ?? this.targetDeviceId,
       lastSentDate: lastSentDate ?? this.lastSentDate,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1071,6 +1215,9 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1089,6 +1236,7 @@ class SchedulesCompanion extends UpdateCompanion<Schedule> {
           ..write('targetDeviceId: $targetDeviceId, ')
           ..write('lastSentDate: $lastSentDate, ')
           ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1472,12 +1620,14 @@ typedef $$GroupsTableCreateCompanionBuilder =
     GroupsCompanion Function({
       required String id,
       required String name,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 typedef $$GroupsTableUpdateCompanionBuilder =
     GroupsCompanion Function({
       Value<String> id,
       Value<String> name,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 
@@ -1539,6 +1689,11 @@ class $$GroupsTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1611,6 +1766,11 @@ class $$GroupsTableOrderingComposer
     column: $table.name,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$GroupsTableAnnotationComposer
@@ -1627,6 +1787,9 @@ class $$GroupsTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
 
   Expression<T> contactsRefs<T extends Object>(
     Expression<T> Function($$ContactsTableAnnotationComposer a) f,
@@ -1709,14 +1872,26 @@ class $$GroupsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => GroupsCompanion(id: id, name: name, rowid: rowid),
+              }) => GroupsCompanion(
+                id: id,
+                name: name,
+                isDeleted: isDeleted,
+                rowid: rowid,
+              ),
           createCompanionCallback:
               ({
                 required String id,
                 required String name,
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => GroupsCompanion.insert(id: id, name: name, rowid: rowid),
+              }) => GroupsCompanion.insert(
+                id: id,
+                name: name,
+                isDeleted: isDeleted,
+                rowid: rowid,
+              ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) =>
@@ -1800,6 +1975,7 @@ typedef $$ContactsTableCreateCompanionBuilder =
       required String name,
       required String phone,
       Value<String?> groupId,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
@@ -1808,6 +1984,7 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String> phone,
       Value<String?> groupId,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 
@@ -1855,6 +2032,11 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<String> get phone => $composableBuilder(
     column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1906,6 +2088,11 @@ class $$ContactsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$GroupsTableOrderingComposer get groupId {
     final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -1947,6 +2134,9 @@ class $$ContactsTableAnnotationComposer
 
   GeneratedColumn<String> get phone =>
       $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
 
   $$GroupsTableAnnotationComposer get groupId {
     final $$GroupsTableAnnotationComposer composer = $composerBuilder(
@@ -2004,12 +2194,14 @@ class $$ContactsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> phone = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
                 name: name,
                 phone: phone,
                 groupId: groupId,
+                isDeleted: isDeleted,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2018,12 +2210,14 @@ class $$ContactsTableTableManager
                 required String name,
                 required String phone,
                 Value<String?> groupId = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ContactsCompanion.insert(
                 id: id,
                 name: name,
                 phone: phone,
                 groupId: groupId,
+                isDeleted: isDeleted,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2104,6 +2298,7 @@ typedef $$SchedulesTableCreateCompanionBuilder =
       Value<String?> targetDeviceId,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 typedef $$SchedulesTableUpdateCompanionBuilder =
@@ -2117,6 +2312,7 @@ typedef $$SchedulesTableUpdateCompanionBuilder =
       Value<String?> targetDeviceId,
       Value<DateTime?> lastSentDate,
       Value<bool> isActive,
+      Value<bool> isDeleted,
       Value<int> rowid,
     });
 
@@ -2189,6 +2385,11 @@ class $$SchedulesTableFilterComposer
 
   ColumnFilters<bool> get isActive => $composableBuilder(
     column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2265,6 +2466,11 @@ class $$SchedulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$GroupsTableOrderingComposer get groupId {
     final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -2328,6 +2534,9 @@ class $$SchedulesTableAnnotationComposer
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
 
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
   $$GroupsTableAnnotationComposer get groupId {
     final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -2389,6 +2598,7 @@ class $$SchedulesTableTableManager
                 Value<String?> targetDeviceId = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SchedulesCompanion(
                 id: id,
@@ -2400,6 +2610,7 @@ class $$SchedulesTableTableManager
                 targetDeviceId: targetDeviceId,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
+                isDeleted: isDeleted,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2413,6 +2624,7 @@ class $$SchedulesTableTableManager
                 Value<String?> targetDeviceId = const Value.absent(),
                 Value<DateTime?> lastSentDate = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SchedulesCompanion.insert(
                 id: id,
@@ -2424,6 +2636,7 @@ class $$SchedulesTableTableManager
                 targetDeviceId: targetDeviceId,
                 lastSentDate: lastSentDate,
                 isActive: isActive,
+                isDeleted: isDeleted,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -128,7 +128,7 @@ class CampaignsView extends StatelessWidget {
               itemCount: schedules.length,
               itemBuilder: (context, i) {
                 final schedule = schedules[i];
-                final groupName = groups.firstWhere((g) => g.id == schedule.groupId, orElse: () => const Group(id: '-1', name: 'مجموعة محذوفة')).name;
+                final groupName = groups.firstWhere((g) => g.id == schedule.groupId, orElse: () => const Group(id: '-1', name: 'مجموعة محذوفة', isDeleted: true)).name;
                 final deviceName = devices.firstWhere((d) => d['device_id'] == schedule.targetDeviceId, orElse: () => {'device_name': 'جهاز غير محدد'})['device_name'];
                 final time = TimeOfDay(hour: schedule.sendHour, minute: schedule.sendMinute).format(context);
 

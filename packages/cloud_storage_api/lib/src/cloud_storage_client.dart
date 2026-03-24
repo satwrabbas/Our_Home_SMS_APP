@@ -8,9 +8,8 @@ class CloudStorageClient {
   final SupabaseClient _supabaseClient;
 
   // ==========================================
-  // قسم المصادقة (Authentication) - (بدون تغيير)
+  // 1. قسم المصادقة (Authentication)
   // ==========================================
-
   Future<void> signIn({required String email, required String password}) async {
     await _supabaseClient.auth.signInWithPassword(email: email, password: password);
   }
@@ -24,21 +23,89 @@ class CloudStorageClient {
   }
 
   Stream<AuthState> get authStateChanges => _supabaseClient.auth.onAuthStateChange;
-  
   Session? get currentSession => _supabaseClient.auth.currentSession;
-
-  // ==========================================
-  // 🌟 (جديد) دالة مساعدة لجلب رقم المستخدم الحالي
-  // ==========================================
   String? get _currentUserId => _supabaseClient.auth.currentUser?.id;
 
   // ==========================================
-  // قسم المزامنة (الرفع - Upload) - (تم تحديثه)
+  // 2. 🌟 قسم إدارة الأجهزة (Device Management)
+  // ==========================================
+
+  /// تسجيل الجهاز أو استعادته من الموت باستخدام بصمة الأندرويد (Hardware ID)
+  Future<String?> registerDevice({
+    required String deviceName, 
+    required String fcmToken, 
+    required String hardwareId,
+  }) async {
+    if (_currentUserId == null) return null;
+
+    final data = {
+      'user_id': _currentUserId,
+      'device_name': deviceName,
+      'fcm_token': fcmToken,
+      'hardware_id': hardwareId, 
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    try {
+      final existingDevice = await _supabaseClient
+          .from('user_tokens')
+          .select('device_id')
+          .eq('user_id', _currentUserId!)
+          .eq('hardware_id', hardwareId) 
+          .maybeSingle();
+
+      if (existingDevice != null) {
+        // الهاتف عاد من الموت (حُذف وتمت إعادة تثبيته)!
+        final oldId = existingDevice['device_id'];
+        data['device_id'] = oldId;
+        
+        await _supabaseClient.from('user_tokens').upsert(data);
+        return oldId as String; 
+      } else {
+        // هاتف جديد كلياً
+        final response = await _supabaseClient.from('user_tokens').insert(data).select().single();
+        return response['device_id'] as String;
+      }
+    } catch (e) {
+      throw 'حدث خطأ في تسجيل الجهاز: $e';
+    }
+  }
+
+  Future<void> removeDevice(String deviceId) async {
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('user_tokens').delete().eq('device_id', deviceId);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchDevices() async {
+    if (_currentUserId == null) return[];
+    return await _supabaseClient.from('user_tokens').select().eq('user_id', _currentUserId!);
+  }
+
+  // ==========================================
+  // 3. 🌟 قسم الحذف الناعم (Soft Delete)
+  // ==========================================
+  
+  Future<void> softDeleteGroup(String id) async {
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('groups').update({'is_deleted': true}).eq('id', id).eq('user_id', _currentUserId!);
+  }
+
+  Future<void> softDeleteContact(String id) async {
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('contacts').update({'is_deleted': true}).eq('id', id).eq('user_id', _currentUserId!);
+  }
+
+  Future<void> softDeleteSchedule(String id) async {
+    if (_currentUserId == null) return;
+    await _supabaseClient.from('schedules').update({'is_deleted': true}).eq('id', id).eq('user_id', _currentUserId!);
+  }
+
+  // ==========================================
+  // 4. 🔄 قسم المزامنة (الرفع - Upload)
   // ==========================================
 
   Future<void> syncGroups(List<Map<String, dynamic>> groups) async {
     if (_currentUserId == null || groups.isEmpty) return;
-    // إضافة user_id لكل صف قبل رفعه
     final data = groups.map((g) => {...g, 'user_id': _currentUserId}).toList();
     await _supabaseClient.from('groups').upsert(data);
   }
@@ -62,12 +129,11 @@ class CloudStorageClient {
   }
 
   // ==========================================
-  // قسم جلب البيانات (التنزيل - Download) - (تم تحديثه)
+  // 5. 📥 قسم جلب البيانات (التنزيل - Download)
   // ==========================================
 
   Future<List<Map<String, dynamic>>> fetchGroups() async {
     if (_currentUserId == null) return[];
-    // لا تجلب إلا المجموعات الخاصة بهذا المستخدم فقط
     return await _supabaseClient.from('groups').select().eq('user_id', _currentUserId!);
   }
   
@@ -87,97 +153,17 @@ class CloudStorageClient {
   }
 
   // ==========================================
-  // قسم الحذف (Delete) - 🌟 محدث لنظام الـ UUID
-  // ==========================================
-  
-  Future<void> deleteGroup(String id) async { // 🌟 String بدل int
-    if (_currentUserId == null) return;
-    await _supabaseClient.from('groups').delete().eq('id', id).eq('user_id', _currentUserId!);
-  }
-
-  Future<void> deleteSchedule(String id) async { // 🌟 String بدل int
-    if (_currentUserId == null) return;
-    await _supabaseClient.from('schedules').delete().eq('id', id).eq('user_id', _currentUserId!);
-  }
-
-  Future<void> deleteContact(String id) async { // 🌟 String بدل int (إذا لم تكن موجودة، أضفها)
-    if (_currentUserId == null) return;
-    await _supabaseClient.from('contacts').delete().eq('id', id).eq('user_id', _currentUserId!);
-  }
-
-  // ==========================================
-  // 🌟 قسم إدارة الأجهزة (Device Management)
+  // 6. ⏱️ قسم تتبع تاريخ التحديثات (Sync Metadata)
   // ==========================================
 
-/// 🌟 تسجيل الجهاز أو استعادته من الموت باستخدام بصمة الأندرويد (Hardware ID)
-  Future<String?> registerDevice({
-    required String deviceName, 
-    required String fcmToken, 
-    required String hardwareId, // 🌟 البصمة الجديدة
-  }) async {
-    if (_currentUserId == null) return null;
-
-    final data = {
-      'user_id': _currentUserId,
-      'device_name': deviceName,
-      'fcm_token': fcmToken,
-      'hardware_id': hardwareId, // 🌟 نحفظ البصمة
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    };
-
-    try {
-      // 1. نسأل السحابة: هل يوجد جهاز يحمل نفس هذه البصمة لهذا المستخدم؟
-      final existingDevice = await _supabaseClient
-          .from('user_tokens')
-          .select('device_id')
-          .eq('user_id', _currentUserId!)
-          .eq('hardware_id', hardwareId) // 🌟 البحث بالبصمة المستحيل تغييرها!
-          .maybeSingle();
-
-      if (existingDevice != null) {
-        // 🌟 الهاتف عاد من الموت (حُذف وتمت إعادة تثبيته)!
-        // نأخذ الـ ID القديم لكي لا تضيع الحملات المربوطة به، ونحدث الـ FCM Token فقط
-        final oldId = existingDevice['device_id'];
-        data['device_id'] = oldId;
-        
-        await _supabaseClient.from('user_tokens').upsert(data);
-        return oldId as String; 
-      } else {
-        // 2. هاتف جديد كلياً
-        final response = await _supabaseClient.from('user_tokens').insert(data).select().single();
-        return response['device_id'] as String;
-      }
-    } catch (e) {
-      throw 'حدث خطأ في تسجيل الجهاز: $e';
-    }
-  }
-  /// حذف جهاز من السحابة (فك الارتباط)
-  Future<void> removeDevice(String deviceId) async {
-    if (_currentUserId == null) return;
-    await _supabaseClient.from('user_tokens').delete().eq('device_id', deviceId);
-  }
-
-  /// جلب كل الأجهزة المربوطة بهذا الحساب (لنختار منها عند إنشاء حملة)
-  Future<List<Map<String, dynamic>>> fetchDevices() async {
-    if (_currentUserId == null) return[];
-    return await _supabaseClient.from('user_tokens').select().eq('user_id', _currentUserId!);
-  }
-  // ==========================================
-  // 🌟 قسم تتبع تاريخ التحديثات (Sync Metadata)
-  // ==========================================
-
-  /// 1. تسجيل لحظة التعديل: نحدث الوقت في السحابة ليصبح (الآن)
   Future<void> updateCloudSyncTime() async {
     if (_currentUserId == null) return;
-    
     await _supabaseClient.from('sync_metadata').upsert({
       'user_id': _currentUserId,
-      // نستخدم التوقيت العالمي (UTC) لتوحيد الوقت بين كل الأجهزة
       'last_updated_at': DateTime.now().toUtc().toIso8601String(), 
     });
   }
 
-  /// 2. قراءة لحظة التعديل: نسأل السحابة متى كان آخر تحديث؟
   Future<DateTime?> getCloudSyncTime() async {
     if (_currentUserId == null) return null;
     
@@ -185,12 +171,11 @@ class CloudStorageClient {
         .from('sync_metadata')
         .select('last_updated_at')
         .eq('user_id', _currentUserId!)
-        .maybeSingle(); // نجلب صفا واحداً فقط (أو null إذا لم يكن موجوداً)
+        .maybeSingle(); 
 
     if (response != null && response['last_updated_at'] != null) {
       return DateTime.parse(response['last_updated_at']);
     }
-    
     return null;
   }
 }
