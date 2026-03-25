@@ -32,21 +32,30 @@ class CrmRepository {
     await _cloudStorage.signUp(email: email, password: password);
   }
 
+  // ==========================================
+  // 🚪 دالة تسجيل الخروج (النسخة المدمرة للذاكرة 💥)
+  // ==========================================
   Future<void> signOut() async {
     try {
-      // 1. نحاول مسح الجهاز من السحابة (قد يفشل إذا لم يكن هناك إنترنت)
       final prefs = await SharedPreferences.getInstance();
+      
+      // 1. نحاول مسح الجهاز من السحابة (قد يفشل إذا لم يكن هناك إنترنت)
       final deviceId = prefs.getString('registered_device_id');
       if (deviceId != null) {
         await _cloudStorage.removeDevice(deviceId);
-        await prefs.remove('registered_device_id');
       }
+      
+      // 🌟 2. السحر هنا: مسح كل الذاكرة المؤقتة (بما فيها وقت المزامنة القديم!)
+      // هذا يضمن أن تسجيل الدخول القادم سيبدأ بذاكرة نظيفة 100%
+      await prefs.clear(); 
+      
     } catch (e) {
       print("⚠️ تعذر مسح مفتاح الجهاز من السحابة بسبب انقطاع الإنترنت: $e");
     } finally {
-      // 🌟 السحر هنا (finally): 
-      // سواء نجحت الخطوة السابقة أو فشلت، يجب إجبار الهاتف على مسح البيانات وتسجيل الخروج!
+      // 3. مسح قاعدة البيانات المحلية (Drift)
       await _localStorage.clearAllData();
+      
+      // 4. تسجيل الخروج من السحابة (Supabase)
       await _cloudStorage.signOut();
     }
   }
