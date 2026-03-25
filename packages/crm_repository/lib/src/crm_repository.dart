@@ -33,18 +33,22 @@ class CrmRepository {
   }
 
   Future<void> signOut() async {
-    // 0. مسح الجهاز من السحابة قبل الخروج
-    final prefs = await SharedPreferences.getInstance();
-    final deviceId = prefs.getString('registered_device_id');
-    if (deviceId != null) {
-      await _cloudStorage.removeDevice(deviceId);
-      await prefs.remove('registered_device_id');
+    try {
+      // 1. نحاول مسح الجهاز من السحابة (قد يفشل إذا لم يكن هناك إنترنت)
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('registered_device_id');
+      if (deviceId != null) {
+        await _cloudStorage.removeDevice(deviceId);
+        await prefs.remove('registered_device_id');
+      }
+    } catch (e) {
+      print("⚠️ تعذر مسح مفتاح الجهاز من السحابة بسبب انقطاع الإنترنت: $e");
+    } finally {
+      // 🌟 السحر هنا (finally): 
+      // سواء نجحت الخطوة السابقة أو فشلت، يجب إجبار الهاتف على مسح البيانات وتسجيل الخروج!
+      await _localStorage.clearAllData();
+      await _cloudStorage.signOut();
     }
-    
-    // 1. مسح البيانات المحلية
-    await _localStorage.clearAllData();
-    // 2. تسجيل الخروج
-    await _cloudStorage.signOut();
   }
 
   /// 🌟 تسجيل الجهاز في السحابة

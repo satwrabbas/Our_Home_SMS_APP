@@ -172,4 +172,15 @@ class CampaignsCubit extends Cubit<CampaignsState> {
       emit(CampaignsError(message: 'خطأ أثناء تبديل حالة الحملة: $e'));
     }
   }
+
+  // 🌟 دالة تسجيل الخروج (آمنة ولا تدمر الواجهة)
+  Future<void> logout() async {
+    try {
+      await _repository.signOut(); 
+      // الـ AuthGate ستتكفل بطرد المستخدم فوراً 🚪💨
+    } catch (e) {
+      // نكتفي بالطباعة في الكواليس، لأن المدير الآن مجبر على الخروج بفضل finally
+      print("⚠️ خطأ غير متوقع أثناء تسجيل الخروج: $e");
+    }
+  }
 }

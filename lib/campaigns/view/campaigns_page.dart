@@ -24,6 +24,38 @@ class CampaignsPage extends StatelessWidget {
 class CampaignsView extends StatelessWidget {
   const CampaignsView({super.key});
 
+  
+  // 🌟 دالة إظهار رسالة تأكيد تسجيل الخروج
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children:[
+            Icon(Icons.logout, color: Colors.red),
+            SizedBox(width: 8),
+            Text('تسجيل الخروج'),
+          ],
+        ),
+        content: const Text('هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟', style: TextStyle(fontSize: 16)),
+        actions:[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext), // إغلاق النافذة فقط
+            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(dialogContext); // إغلاق النافذة
+              context.read<CampaignsCubit>().logout(); // 🚀 استدعاء دالة الخروج من الكيوبت
+            },
+            child: const Text('خروج', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
   // 🔒 قفل الأمان الأول والثاني: التحقق قبل فتح نافذة الحملة
   void _validateAndShowScheduleDialog(
     BuildContext context,
@@ -80,6 +112,13 @@ class CampaignsView extends StatelessWidget {
           title: const Text('الحملات والمجموعات', style: TextStyle(fontWeight: FontWeight.bold)),
           centerTitle: true,
           elevation: 0,
+          actions:[
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.redAccent),
+              tooltip: 'تسجيل خروج',
+              onPressed: () => _showLogoutConfirmation(context),
+            ),
+          ],
           bottom: const TabBar(
             indicatorColor: Colors.white,
             tabs:[
