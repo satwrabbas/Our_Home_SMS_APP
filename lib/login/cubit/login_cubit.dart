@@ -17,16 +17,9 @@ class LoginCubit extends Cubit<LoginState> {
     try {
       await _repository.signIn(email: email, password: password);
       emit(LoginSuccess());
-    } on AuthException catch (e) {
-      // 1. ترجمة أخطاء Supabase الشهيرة
-      if (e.message.toLowerCase().contains('invalid login credentials')) {
-        emit(LoginError(message: 'البريد الإلكتروني أو كلمة المرور غير صحيحة ❌'));
-      } else {
-        emit(LoginError(message: e.message)); // أخطاء أخرى من السحابة
-      }
     } catch (e) {
-      // 2. معالجة أخطاء الإنترنت والأخطاء الغريبة
-      _handleGenericError(e);
+      // نمرر أي خطأ مهما كان للمترجم الذكي
+      emit(LoginError(message: _translateError(e)));
     }
   }
 
@@ -36,34 +29,46 @@ class LoginCubit extends Cubit<LoginState> {
     try {
       await _repository.signUp(email: email, password: password);
       emit(LoginSuccess());
-    } on AuthException catch (e) {
-      // 1. ترجمة أخطاء إنشاء الحساب
-      if (e.message.toLowerCase().contains('user already registered')) {
-        emit(LoginError(message: 'هذا البريد الإلكتروني مسجل مسبقاً لدينا! 📧'));
-      } else if (e.message.toLowerCase().contains('password should be at least')) {
-        emit(LoginError(message: 'كلمة المرور ضعيفة، يجب أن تكون 6 أحرف على الأقل 🔐'));
-      } else {
-        emit(LoginError(message: e.message));
-      }
     } catch (e) {
-      // 2. معالجة أخطاء الإنترنت
-      _handleGenericError(e);
+      // نمرر أي خطأ مهما كان للمترجم الذكي
+      emit(LoginError(message: _translateError(e)));
     }
   }
 
-  /// 🌟 الفلتر الذكي لاصطياد أخطاء الإنترنت وترجمتها
-  void _handleGenericError(Object e) {
+  /// 🌟 المترجم الذكي الموحد لاصطياد جميع أنواع الأخطاء
+  String _translateError(Object e) {
     final errorStr = e.toString().toLowerCase();
     
-    // إذا كان الخطأ يحتوي على كلمات تدل على انقطاع الإنترنت
+    // 1. التحقق من انقطاع الإنترنت (نصطادها أولاً مهما كان نوع الخطأ من Supabase أو غيرها)
     if (errorStr.contains('socket') || 
         errorStr.contains('host lookup') || 
         errorStr.contains('network') || 
-        errorStr.contains('connection')) {
-      emit(LoginError(message: '❌ لا يوجد اتصال بالإنترنت! يرجى التحقق من الشبكة والمحاولة مجدداً.'));
-    } else {
-      // إذا كان خطأً آخر غير معروف
-      emit(LoginError(message: 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.'));
+        errorStr.contains('connection') ||
+        errorStr.contains('xmlhttprequest') || // ضروري جداً لاصطياد أخطاء الإنترنت إذا كنت تستخدم Flutter Web
+        errorStr.contains('clientexception')) {
+      return '❌ لا يوجد اتصال بالإنترنت! يرجى التحقق من الشبكة والمحاولة مجدداً.';
     }
+
+    // 2. التحقق من أخطاء Supabase المحددة
+    if (e is AuthException) {
+      if (errorStr.contains('invalid login credentials')) {
+        return 'البريد الإلكتروني أو كلمة المرور غير صحيحة ❌';
+      }
+      if (errorStr.contains('user already registered')) {
+        return 'هذا البريد الإلكتروني مسجل مسبقاً لدينا! 📧';
+      }
+      if (errorStr.contains('password should be at least')) {
+        return 'كلمة المرور ضعيفة، يجب أن تكون 6 أحرف على الأقل 🔐';
+      }
+      if (errorStr.contains('rate limit')) {
+        return 'حاولت الكثير من المرات. يرجى الانتظار قليلاً ⏳';
+      }
+      
+      // إذا كان خطأ من Supabase لم نترجمه
+      return 'حدث خطأ في المصادقة: ${e.message}'; 
+    }
+
+    // 3. أي خطأ آخر غريب
+    return 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.';
   }
 }
